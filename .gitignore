@@ -1,0 +1,6 @@
+# raw telemetry stays out of the repo (lives in Azure Blob)
+data/
+*.csv
+__pycache__/
+.venv/
+local.settings.json
