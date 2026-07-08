@@ -13,12 +13,18 @@
 ## Weekend 2 (in progress)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
       as serverless endpoint; archives raw CSV to Blob, loads SQL,
-      returns JSON summary) — code complete (function_app.py,
-      ingest/cloud.py), compiles and imports locally via `func start`.
-      **Not yet deployed**: no Function App resource provisioned in
-      Azure yet (`az functionapp list` is empty). Next steps: create
-      the Function App + managed identity, run sql/05_function_identity.sql
-      against it, deploy, then test a real POST against it.
+      returns JSON summary) — deployed and smoke-tested 2026-07-08.
+      `func-track-telemetry-ingest` (Consumption, Linux, Python 3.12,
+      eastus), system-assigned managed identity granted
+      `Storage Blob Data Contributor` on `racechronoraw` and
+      `db_datareader`/`db_datawriter` on the SQL DB (via
+      sql/05_function_identity.sql). Live at
+      `https://func-track-telemetry-ingest.azurewebsites.net/api/ingest`
+      (function-key auth). Verified end-to-end with a real 52k-sample
+      CSV in `dry_run=1` mode: parse, lap calc, corner-metric calc,
+      SQL corner lookup, and Blob archive all succeeded in ~7s.
+      Not yet tried with `dry_run=0` (an actual DB load) or from the
+      iOS Shortcut.
 - [ ] iOS Shortcut: share-sheet upload from RaceChrono at the track
 - [ ] MCP server on Azure Container Apps (Streamable HTTP), managed
       identity -> SQL (db_datareader)
