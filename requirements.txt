@@ -1,0 +1,8 @@
+azure-functions
+azure-identity
+azure-storage-blob
+python-tds
+# pytds's TLS hostname check still calls X509.get_extension(), removed in
+# pyOpenSSL 26.2 - pin below that until pytds updates to pyca/cryptography.
+pyOpenSSL<26.2
+certifi

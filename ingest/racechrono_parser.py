@@ -208,7 +208,8 @@ def fetch_corners(cnx, event_id):
              "zone_radius_m": r[4]} for r in cur.fetchall()]
 
 
-def load(cnx, args, meta, samples, laps, metrics):
+def load(cnx, event_id, session_number, source_filename, meta, samples,
+         laps, metrics):
     session_date = None
     created = meta.get("Created", "")
     if created:
@@ -222,8 +223,8 @@ def load(cnx, args, meta, samples, laps, metrics):
             (event_id, session_number, session_date, start_time, source_file)
         OUTPUT INSERTED.session_id
         VALUES (?,?,?,?,?)""",
-        args.event_id, args.session_number, session_date,
-        start_time, args.csv.split("/")[-1])
+        event_id, session_number, session_date,
+        start_time, source_filename)
     session_id = cur.fetchone()[0]
 
     lap_ids = {}
@@ -315,7 +316,8 @@ def main():
     if args.load:
         if cnx is None:
             sys.exit("--load requires --server/--database/--event-id")
-        sid = load(cnx, args, meta, samples, laps, metrics)
+        sid = load(cnx, args.event_id, args.session_number,
+                   args.csv.split("/")[-1], meta, samples, laps, metrics)
         print(f"\nLoaded as session_id {sid}: "
               f"{len(laps)} laps, {len(metrics)} corner metrics.")
     else:

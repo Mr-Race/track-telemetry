@@ -1,0 +1,10 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SQL_SERVER": "track-telemetry.database.windows.net",
+    "SQL_DATABASE": "free-sql-db-7848405",
+    "STORAGE_ACCOUNT_URL": "https://racechronoraw.blob.core.windows.net"
+  }
+}

@@ -10,10 +10,15 @@
       the React dashboard; enable "compare my pace in cool vs hot
       sessions" views once enough data accumulates.
 
-## Weekend 2 (planned)
-- [ ] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
+## Weekend 2 (in progress)
+- [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
       as serverless endpoint; archives raw CSV to Blob, loads SQL,
-      returns JSON summary)
+      returns JSON summary) — code complete (function_app.py,
+      ingest/cloud.py), compiles and imports locally via `func start`.
+      **Not yet deployed**: no Function App resource provisioned in
+      Azure yet (`az functionapp list` is empty). Next steps: create
+      the Function App + managed identity, run sql/05_function_identity.sql
+      against it, deploy, then test a real POST against it.
 - [ ] iOS Shortcut: share-sheet upload from RaceChrono at the track
 - [ ] MCP server on Azure Container Apps (Streamable HTTP), managed
       identity -> SQL (db_datareader)

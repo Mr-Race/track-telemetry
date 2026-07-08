@@ -1,0 +1,10 @@
+.git*
+.devcontainer
+sql
+docs
+data
+README.md
+local.settings.json
+.venv
+__pycache__
+*.pyc
