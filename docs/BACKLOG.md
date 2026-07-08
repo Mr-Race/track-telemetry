@@ -50,9 +50,12 @@
 - [ ] Corner names (Jersey Devil, Lightbulb, etc.) in corners table
 
 ## Done
-- [x] Resource group, Azure SQL (free tier, Entra-only), Storage
-- [x] Schema DDL with config-aware tracks and corner zones
-- [x] Corner apex coordinates: Lightning 10, Thunderbolt Classic 13,
-      Devil's Pass 11 (T9 provisional)
-- [x] Parser: CSV v3 -> laps + corner metrics, median-based lap
-      validity, tested against real May/June sessions
+- [x] 2026-07-03 — Resource group, Azure SQL (free tier, Entra-only), Storage
+- [x] 2026-07-06 — Schema DDL with config-aware tracks and corner zones
+- [x] 2026-07-06 — Corner apex coordinates: Lightning 10, Thunderbolt
+      Classic 13, Devil's Pass 11 (T9 provisional)
+- [x] 2026-07-06 — Parser: CSV v3 -> laps + corner metrics, median-based
+      lap validity, tested against real May/June sessions
+- [x] 2026-07-08 — HTTP ingest Azure Function (POST /api/ingest):
+      built, deployed (func-track-telemetry-ingest, eastus), and
+      verified end-to-end with both dry-run and a real DB load
