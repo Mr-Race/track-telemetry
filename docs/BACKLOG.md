@@ -21,10 +21,10 @@
       sql/05_function_identity.sql). Live at
       `https://func-track-telemetry-ingest.azurewebsites.net/api/ingest`
       (function-key auth). Verified end-to-end with a real 52k-sample
-      CSV in `dry_run=1` mode: parse, lap calc, corner-metric calc,
-      SQL corner lookup, and Blob archive all succeeded in ~7s.
-      Not yet tried with `dry_run=0` (an actual DB load) or from the
-      iOS Shortcut.
+      CSV: `dry_run=1` (parse, lap calc, corner-metric calc, SQL
+      corner lookup, Blob archive, ~7s) and a real `dry_run=0` load
+      (session + 7 laps + 70 corner_metrics written, ~14s; test row
+      deleted afterward). Not yet tried from the iOS Shortcut.
 - [ ] iOS Shortcut: share-sheet upload from RaceChrono at the track
 - [ ] MCP server on Azure Container Apps (Streamable HTTP), managed
       identity -> SQL (db_datareader)
