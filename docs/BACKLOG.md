@@ -24,8 +24,11 @@
       CSV: `dry_run=1` (parse, lap calc, corner-metric calc, SQL
       corner lookup, Blob archive, ~7s) and a real `dry_run=0` load
       (session + 7 laps + 70 corner_metrics written, ~14s; test row
-      deleted afterward). Not yet tried from the iOS Shortcut.
-- [ ] iOS Shortcut: share-sheet upload from RaceChrono at the track
+      deleted afterward). Verified from the iOS Shortcut too — see
+      docs/ios_shortcut.md.
+- [x] iOS Shortcut: share-sheet upload from RaceChrono at the track —
+      built per docs/ios_shortcut.md, tested 2026-07-21 end-to-end
+      (dry run + real load: session_id 5, 10 laps, 100 corner_metrics).
 - [ ] MCP server on Azure Container Apps (Streamable HTTP), managed
       identity -> SQL (db_datareader)
 - [ ] Register as Claude custom connector; test from phone
@@ -59,3 +62,6 @@
 - [x] 2026-07-08 — HTTP ingest Azure Function (POST /api/ingest):
       built, deployed (func-track-telemetry-ingest, eastus), and
       verified end-to-end with both dry-run and a real DB load
+- [x] 2026-07-21 — iOS Shortcut share-sheet upload from RaceChrono,
+      tested end-to-end from an iPhone (real session loaded: session_id
+      5, 10 laps, 100 corner_metrics)
