@@ -9,8 +9,21 @@
 - [ ] **Dashboard weather section** — per-session conditions panel in
       the React dashboard; enable "compare my pace in cool vs hot
       sessions" views once enough data accumulates.
+- [ ] **Backfill historical sessions** — upload all pre-existing
+      RaceChrono CSVs (before the ingest Function/Shortcut existed)
+      through the same /api/ingest path so past track days show up
+      alongside new ones.
+- [ ] **Investigate automating the file load from RaceChrono/Shortcuts**
+      — today's flow is share-sheet -> Shortcut -> manual trigger;
+      look into whether RaceChrono can auto-export/auto-share on
+      session stop, or whether Shortcuts has a folder-watch/automation
+      trigger, to remove the manual step at the track.
+- [ ] **Login page on a custom domain (www.mr-race.com)** — front the
+      MCP connector/dashboard with a proper login page on the owned
+      domain instead of the raw Container Apps URL; ties into the
+      planned OAuth 2.1 + PKCE work below.
 
-## Weekend 2 (in progress)
+## Weekend 2 (complete)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
       as serverless endpoint; archives raw CSV to Blob, loads SQL,
       returns JSON summary) — deployed and smoke-tested 2026-07-08.
