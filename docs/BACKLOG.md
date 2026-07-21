@@ -29,8 +29,19 @@
 - [x] iOS Shortcut: share-sheet upload from RaceChrono at the track —
       built per docs/ios_shortcut.md, tested 2026-07-21 end-to-end
       (dry run + real load: session_id 5, 10 laps, 100 corner_metrics).
-- [ ] MCP server on Azure Container Apps (Streamable HTTP), managed
-      identity -> SQL (db_datareader)
+- [x] 2026-07-21 — MCP server on Azure Container Apps (Streamable
+      HTTP), managed identity -> SQL (db_datareader). Deployed as
+      `ca-track-telemetry-mcp` (see docs/mcp_server.md). Fixed two
+      deploy-time bugs: missing `azure-storage-blob` in
+      mcp_server/requirements.txt (server imports `ingest.cloud`,
+      which imports it at module level, causing a crash loop), and
+      FastMCP's DNS-rebinding host-header check rejecting all traffic
+      because `mcp.settings.host` was set post-construction instead
+      of passed to the `FastMCP(...)` constructor (421 "Invalid Host
+      header"). Granted the identity `db_datareader` via
+      sql/06_mcp_identity.sql. Verified all four tools
+      (list_sessions, get_session_detail, get_corner_metrics,
+      compare_laps) against the live endpoint with a real MCP client.
 - [ ] Register as Claude custom connector; test from phone
 
 ## Weekend 3 (planned)
