@@ -22,6 +22,11 @@
       MCP connector/dashboard with a proper login page on the owned
       domain instead of the raw Container Apps URL; ties into the
       planned OAuth 2.1 + PKCE work below.
+- [ ] **Push session summaries/analysis to the dashboard** — after
+      ingest, generate a per-session summary (fastest lap, corner
+      deltas vs. prior sessions at the same track, consistency/std
+      dev across valid laps) and surface it as a dashboard view rather
+      than something you have to ask Claude for on demand.
 
 ## Weekend 2 (complete)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
