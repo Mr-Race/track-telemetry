@@ -110,6 +110,12 @@ Tap the settings icon (ⓘ) at the top of the shortcut editor:
 - **`UQ_sessions_event_number` violation on a real load**: that
   event_id + session_number combination is already in `dbo.sessions`
   — bump the session number.
+- **Timeout on the very first upload of the day**: expected, not a bug.
+  The Function App (Consumption plan) spins workers down when idle, and
+  the free-tier serverless SQL DB auto-pauses too — the first request
+  has to cold-start the Function *and* wait ~30-60s for SQL to resume
+  (see `LOGIN_TIMEOUT_S` in `ingest/cloud.py`). Just re-run the shortcut;
+  the second attempt should complete in a few seconds.
 
 ## Optional: preserve the original filename
 
