@@ -42,7 +42,10 @@
       sql/06_mcp_identity.sql. Verified all four tools
       (list_sessions, get_session_detail, get_corner_metrics,
       compare_laps) against the live endpoint with a real MCP client.
-- [ ] Register as Claude custom connector; test from phone
+- [x] 2026-07-21 — Register as Claude custom connector; test from
+      phone. Added via Settings -> Connectors -> Add custom
+      connector, no auth. Confirmed working end-to-end from the
+      phone.
 
 ## Weekend 3 (planned)
 - [ ] OAuth 2.1 + PKCE via Entra ID on the MCP server
