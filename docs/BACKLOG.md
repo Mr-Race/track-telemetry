@@ -69,11 +69,9 @@ Block 4.
 
 ### Block 4 — React dashboard core
 The dashboard itself is the foundation; everything else in this
-block renders into it, so build it first.
-- [ ] React dashboard on Azure Static Web Apps (PWA)
-- [ ] **Dashboard: session list view** — all sessions with track,
-      date, best lap, average of valid laps; tap/click to open
-      session detail.
+block renders into it, so build it first. Foundation, session list,
+and session summary are done (see `## Done`); satellite view, GPS
+overlay, weather section, benchmarks, and consumables tracker remain.
 - [ ] **Dashboard: satellite track view** — satellite image of the
       track for the selected session (static map tile centered on
       track coords is enough for v1).
@@ -85,11 +83,6 @@ block renders into it, so build it first.
       pace in cool vs hot sessions" views once enough data
       accumulates. Full value once Block 2's weather auto-fetch is
       also in place.
-- [ ] **Push session summaries/analysis to the dashboard** — after
-      ingest, generate a per-session summary (fastest lap, corner
-      deltas vs. prior sessions at the same track, consistency/std
-      dev across valid laps) and surface it as a dashboard view rather
-      than something you have to ask Claude for on demand.
 - [ ] **Dashboard: friends' benchmark laps (v1)** — manually entered
       benchmark times per track/config with driver name and date;
       shown alongside my PB in track view ("target" laps). No
@@ -213,3 +206,23 @@ Do last — documents the finished system.
       5, 10 laps, 100 corner_metrics)
 - [x] 2026-07-22 — Decision: Power BI removed from roadmap; React on
       Static Web Apps is the sole visualization layer (licensing)
+- [x] 2026-07-22 — React dashboard on Azure Static Web Apps (PWA):
+      Vite + React + TypeScript app in dashboard/, deployed to
+      `swa-track-telemetry-dashboard` (Free tier, East US 2) at
+      https://salmon-moss-0a7e4b70f.7.azurestaticapps.net via the SWA
+      CLI. Calls func-track-telemetry-ingest directly (CORS enabled
+      for the SWA origin) rather than a Standard-tier linked backend,
+      to stay on the free tier; local dev proxies /api to the
+      Functions host instead.
+- [x] 2026-07-22 — Dashboard: session list view — all sessions with
+      track, date, best lap, average of valid laps; tap/click to open
+      session detail. Backed by new GET /api/sessions (extended with
+      an OUTER APPLY aggregate for best/avg lap) and
+      GET /api/sessions/{id}; query logic shared with the MCP server
+      via the new ingest/queries.py module.
+- [x] 2026-07-22 — Push session summaries/analysis to the dashboard —
+      new GET /api/sessions/{id}/summary: fastest lap, corner-speed
+      deltas vs. the most recent prior session at the same track, and
+      lap-time consistency (stdev across valid laps). Rendered as stat
+      tiles + a color-coded corner-delta table on the session detail
+      page.

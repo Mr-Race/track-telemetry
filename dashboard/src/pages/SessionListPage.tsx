@@ -20,6 +20,8 @@ export function SessionListPage() {
           <th>Track</th>
           <th>Session</th>
           <th>Run group</th>
+          <th>Best lap</th>
+          <th>Avg valid lap</th>
         </tr>
       </thead>
       <tbody>
@@ -32,6 +34,8 @@ export function SessionListPage() {
               <Link to={`/sessions/${s.session_id}`}>#{s.session_number}</Link>
             </td>
             <td>{s.run_group ?? "—"}</td>
+            <td className="tabular">{s.best_lap ?? "—"}</td>
+            <td className="tabular">{s.avg_valid_lap ?? "—"}</td>
           </tr>
         ))}
       </tbody>

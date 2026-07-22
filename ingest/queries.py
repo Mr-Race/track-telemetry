@@ -12,10 +12,19 @@ def list_sessions(cnx, event_id=None):
     sql = """
         SELECT s.session_id, s.event_id, e.event_name, t.track_name,
                s.session_number, s.session_date, s.run_group,
-               s.weather, s.air_temp_f
+               s.weather, s.air_temp_f,
+               lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
+        OUTER APPLY (
+            SELECT MIN(CASE WHEN l.is_valid = 1 THEN l.lap_time_ms END)
+                       AS best_lap_ms,
+                   AVG(CASE WHEN l.is_valid = 1
+                            THEN CAST(l.lap_time_ms AS FLOAT) END)
+                       AS avg_valid_lap_ms
+            FROM dbo.laps l WHERE l.session_id = s.session_id
+        ) lap_agg
     """
     if event_id is not None:
         sql += " WHERE s.event_id = ?"
@@ -31,6 +40,12 @@ def list_sessions(cnx, event_id=None):
             "session_date": str(r[5]), "run_group": r[6],
             "weather": r[7],
             "air_temp_f": float(r[8]) if r[8] is not None else None,
+            "best_lap_ms": r[9],
+            "best_lap": fmt_ms(r[9]) if r[9] is not None else None,
+            "avg_valid_lap_ms": (round(r[10]) if r[10] is not None
+                                  else None),
+            "avg_valid_lap": (fmt_ms(round(r[10]))
+                               if r[10] is not None else None),
         }
         for r in cur.fetchall()
     ]

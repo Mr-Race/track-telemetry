@@ -8,6 +8,10 @@ export interface SessionListItem {
   run_group: string | null;
   weather: string | null;
   air_temp_f: number | null;
+  best_lap_ms: number | null;
+  best_lap: string | null;
+  avg_valid_lap_ms: number | null;
+  avg_valid_lap: string | null;
 }
 
 export interface Lap {
@@ -45,8 +49,13 @@ interface ApiError {
   error: string;
 }
 
+// Local dev proxies /api to the Functions host (vite.config.ts); the
+// production build talks to the Function App directly since the Static
+// Web App is Free tier (no same-origin linked backend).
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`/api${path}`);
+  const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as ApiError | null;
     throw new Error(body?.error ?? `Request to ${path} failed (${res.status})`);
