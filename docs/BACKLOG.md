@@ -6,18 +6,28 @@
       lat/lon + session start_time; populate sessions.weather and
       air_temp_f automatically. Consider adding columns: humidity_pct,
       wind_mph, precip_in, track-relevant conditions summary.
+      Widget below needs humidity + observation time captured, not
+      just temp/summary.
 - [ ] **Dashboard weather section** — per-session conditions panel in
-      the React dashboard; enable "compare my pace in cool vs hot
-      sessions" views once enough data accumulates.
+      the React dashboard (temp, humidity, day/date, session time);
+      enable "compare my pace in cool vs hot sessions" views once
+      enough data accumulates.
 - [ ] **Backfill historical sessions** — upload all pre-existing
       RaceChrono CSVs (before the ingest Function/Shortcut existed)
       through the same /api/ingest path so past track days show up
       alongside new ones.
-- [ ] **Investigate automating the file load from RaceChrono/Shortcuts**
-      — today's flow is share-sheet -> Shortcut -> manual trigger;
-      look into whether RaceChrono can auto-export/auto-share on
-      session stop, or whether Shortcuts has a folder-watch/automation
-      trigger, to remove the manual step at the track.
+- [ ] **One-step ingestion (automate the file load)** — remove the
+      manual Shortcut prompts. Proposed design: export CSV from
+      RaceChrono to a watched OneDrive folder; Logic App (OneDrive
+      "file created" trigger) POSTs it to the ingest Function; the
+      Function derives event/session automatically from CSV metadata
+      (track name + date -> match or auto-create event;
+      session_number = next for that event/date). Add idempotency
+      (skip/flag already-ingested files, e.g. content hash) and a
+      result notification (email/push via the Logic App) replacing
+      the Shortcut popup. Retires the 3-prompt Shortcut once trusted.
+      (Also still worth checking whether RaceChrono can auto-export
+      on session stop.)
 - [ ] **Login page on a custom domain (www.mr-race.com)** — front the
       MCP connector/dashboard with a proper login page on the owned
       domain instead of the raw Container Apps URL; ties into the
@@ -27,6 +37,55 @@
       deltas vs. prior sessions at the same track, consistency/std
       dev across valid laps) and surface it as a dashboard view rather
       than something you have to ask Claude for on demand.
+- [ ] **Dashboard: session list view** — all sessions with track,
+      date, best lap, average of valid laps; tap/click to open
+      session detail.
+- [ ] **Dashboard: satellite track view** — satellite image of the
+      track for the selected session (static map tile centered on
+      track coords is enough for v1).
+- [ ] **Dashboard: GPS trace overlay** — draw the car's driven line
+      over the satellite view, RaceChrono-style, for a selected
+      lap/session. DEPENDS ON: sample-level GPS storage — either
+      parse raw CSV from Blob on demand, or have the ingestion
+      Function persist a downsampled (~5Hz) lat/lon trace per lap.
+- [ ] **Dashboard: track management interface** — view and add
+      tracks/configurations with track info (length, corner count,
+      location) and my personal best per configuration (computed
+      from laps table). NOTE: first write-capable dashboard feature —
+      requires write API endpoints on the Function app + auth on
+      those routes (read endpoints can stay open/simple).
+- [ ] **Dashboard: corner apex editor** — within track management,
+      click/tap on the satellite view to place or adjust corner apex
+      coordinates and zone radii, writing to the corners table.
+      Replaces the manual Google Maps coordinate workflow for new
+      tracks.
+- [ ] **Dashboard: friends' benchmark laps (v1)** — manually entered
+      benchmark times per track/config with driver name and date;
+      shown alongside my PB in track view ("target" laps). No
+      accounts, no uploads — just a benchmarks table.
+- [ ] **Dashboard: consumables life tracker** — migrate the
+      standalone pad-life tracker into the platform. Track per
+      consumable: brake pads (per axle), brake fluid, tire tread /
+      heat cycles (per set), transmission fluid, engine oil, etc.
+      Schema: consumables table (item, install_date, install
+      session/odometer, service life in sessions or months, notes);
+      wear derived automatically from the sessions table (sessions
+      elapsed since install) rather than manual counts. Dashboard
+      widget: remaining-life bars per item, warnings when a track
+      day would exceed service life ("brake fluid due before next
+      event"). v1 manual install/replacement entries; later: a
+      pre-event checklist view.
+- [ ] **Dashboard login with Entra ID (modern auth stack)** —
+      authentication for the React dashboard and write APIs:
+      Entra External ID tenant (successor to AD B2C; me as primary
+      user, ready for friends as external identities later); OAuth
+      2.1 authorization code flow + PKCE via MSAL React (no implicit
+      flow, no secrets in the SPA); passkeys (FIDO2/WebAuthn) as the
+      primary passwordless sign-in; Function app validates bearer
+      tokens — write endpoints require auth, read endpoints may stay
+      open initially. Foundation for track management writes,
+      friends' benchmarks, multi-user v2. Schema prep: add driver_id
+      to sessions early — cheap now, painful later.
 
 ## Weekend 2 (complete)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
@@ -83,6 +142,13 @@
 - [ ] Lock storage account networking to selected networks
       (documented hardening step)
 - [ ] Corner names (Jersey Devil, Lightbulb, etc.) in corners table
+- [ ] **Multi-user platform (v2 ambition)** — friends create
+      accounts, upload their own RaceChrono sessions, share best
+      laps and corner speeds. MAJOR scope: adds identity/auth
+      (Entra External ID), per-user data ownership on sessions/laps,
+      and sharing permissions. Design decision to make BEFORE
+      building: the driver_id schema prep noted in the Entra login
+      item above.
 
 ## Done
 - [x] 2026-07-03 — Resource group, Azure SQL (free tier, Entra-only), Storage
