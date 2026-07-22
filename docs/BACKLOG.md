@@ -5,12 +5,16 @@
   features are built on Azure managed services (Functions, Container
   Apps, Logic Apps, Static Web Apps, Azure SQL serverless, Blob,
   Entra); no locally hosted components, no VMs as permanent
-  infrastructure (ephemeral tooling VMs only, e.g. Power BI
-  authoring), no on-box state. Prefer serverless/consumption tiers,
-  managed identity over secrets, and infrastructure that scales to
-  zero. When a non-Azure service is unavoidable (e.g. Open-Meteo,
-  OneDrive trigger, GitHub), it integrates via API against Azure-
-  hosted compute — nothing runs outside the cloud.
+  infrastructure, no on-box state. Prefer serverless/consumption
+  tiers, managed identity over secrets, and infrastructure that
+  scales to zero. When a non-Azure service is unavoidable (e.g.
+  Open-Meteo, OneDrive trigger, GitHub), it integrates via API
+  against Azure-hosted compute — nothing runs outside the cloud.
+- **React is the sole visualization layer (decided 2026-07-22).**
+  The dashboard is React + Vite on Azure Static Web Apps. Power BI
+  is dropped from the roadmap to avoid licensing costs/dependencies
+  down the line — no per-seat or Pro-license exposure; everything
+  user-facing stays on free-tier, open tooling.
 
 ## Feature requests
 - [ ] **Auto-fetch session weather at ingestion** — when a session is
@@ -142,8 +146,6 @@
 - [ ] Architecture diagram + README writeup (portfolio deliverable)
 
 ## Later / nice-to-have
-- [ ] Power BI addendum: 2-3 report pages over the same DB (ephemeral
-      Azure Windows VM for Desktop authoring)
 - [ ] API Management in front of the ingest endpoint (hardening story)
 - [ ] telemetry_samples table or Parquet-in-Blob for sample-level
       analysis (full speed traces, throttle/RPM overlays)
@@ -175,3 +177,5 @@
 - [x] 2026-07-21 — iOS Shortcut share-sheet upload from RaceChrono,
       tested end-to-end from an iPhone (real session loaded: session_id
       5, 10 laps, 100 corner_metrics)
+- [x] 2026-07-22 — Decision: Power BI removed from roadmap; React on
+      Static Web Apps is the sole visualization layer (licensing)
