@@ -24,6 +24,7 @@ export interface Lap {
 }
 
 export interface SessionDetail extends SessionListItem {
+  track_id: number;
   source_file: string | null;
   laps: Lap[];
   corner_coverage: string[];
@@ -37,12 +38,48 @@ export interface CornerDelta {
 }
 
 export interface SessionSummary extends SessionListItem {
+  track_id: number;
   fastest_lap_ms: number;
   fastest_lap: string;
   valid_lap_count: number;
   consistency_stdev_ms: number;
   prior_session_id: number | null;
   corner_deltas: CornerDelta[];
+}
+
+export interface Benchmark {
+  benchmark_id: number;
+  driver_name: string;
+  lap_time_ms: number;
+  lap_time: string;
+  set_date: string | null;
+  notes: string | null;
+}
+
+export interface TrackBenchmarks {
+  track_id: number;
+  track_name: string;
+  personal_best: {
+    lap_time_ms: number;
+    lap_time: string;
+    session_id: number;
+    session_date: string;
+  } | null;
+  benchmarks: Benchmark[];
+}
+
+export interface Consumable {
+  consumable_id: number;
+  item_name: string;
+  install_date: string;
+  install_session_id: number | null;
+  service_life_sessions: number | null;
+  service_life_months: number | null;
+  notes: string | null;
+  sessions_since_install: number;
+  months_since_install: number;
+  remaining_pct: number | null;
+  overdue: boolean;
 }
 
 interface ApiError {
@@ -73,4 +110,16 @@ export function getSessionDetail(sessionId: number): Promise<SessionDetail> {
 
 export function getSessionSummary(sessionId: number): Promise<SessionSummary> {
   return getJson(`/sessions/${sessionId}/summary`);
+}
+
+export function getTrackBenchmarks(trackId: number): Promise<TrackBenchmarks> {
+  return getJson(`/tracks/${trackId}/benchmarks`);
+}
+
+export function getConsumables(): Promise<Consumable[]> {
+  return getJson("/consumables");
+}
+
+export function trackSatelliteUrl(trackId: number): string {
+  return `${API_BASE}/tracks/${trackId}/satellite`;
 }

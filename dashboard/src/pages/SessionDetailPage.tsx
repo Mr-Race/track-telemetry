@@ -4,6 +4,7 @@ import { getSessionDetail, getSessionSummary } from "../api/client";
 import { useFetch } from "../api/useFetch";
 import { StatTile } from "../components/StatTile";
 import { CornerDeltaTable } from "../components/CornerDeltaTable";
+import { TrackPanel } from "../components/TrackPanel";
 
 function formatStdev(ms: number): string {
   return `±${(ms / 1000).toFixed(3)}s`;
@@ -48,6 +49,9 @@ export function SessionDetailPage() {
         />
         <StatTile label="Valid laps" value={`${summary.valid_lap_count} / ${detail.laps.length}`} />
       </div>
+
+      <h3>Track</h3>
+      <TrackPanel trackId={detail.track_id} />
 
       <h3>Corner speeds vs. prior session at this track</h3>
       <CornerDeltaTable deltas={summary.corner_deltas} />

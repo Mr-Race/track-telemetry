@@ -15,7 +15,7 @@ import uuid
 
 import azure.functions as func
 
-from ingest import queries
+from ingest import maps, queries
 from ingest.cloud import get_cloud_connection, upload_raw_blob
 from ingest.racechrono_parser import (
     compute_corner_metrics, compute_laps, fetch_corners, fmt_ms, load,
@@ -83,6 +83,47 @@ def get_session_summary(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"error": str(exc)}, 404)
     except Exception as exc:
         logging.exception("get_session_summary failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+@app.route(route="tracks/{track_id:int}/satellite", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+def get_track_satellite(req: func.HttpRequest) -> func.HttpResponse:
+    track_id = int(req.route_params["track_id"])
+    try:
+        bbox = maps.track_bbox(_connect(), track_id)
+        png = maps.fetch_satellite_image(os.environ["MAPS_CLIENT_ID"], *bbox)
+        return func.HttpResponse(
+            png, status_code=200, mimetype="image/png",
+            headers={"Cache-Control": "public, max-age=86400"})
+    except ValueError as exc:
+        return _json_response({"error": str(exc)}, 404)
+    except Exception as exc:
+        logging.exception("get_track_satellite failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+@app.route(route="tracks/{track_id:int}/benchmarks", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+def get_track_benchmarks(req: func.HttpRequest) -> func.HttpResponse:
+    track_id = int(req.route_params["track_id"])
+    try:
+        return _json_response(
+            queries.get_track_benchmarks(_connect(), track_id), 200)
+    except ValueError as exc:
+        return _json_response({"error": str(exc)}, 404)
+    except Exception as exc:
+        logging.exception("get_track_benchmarks failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+@app.route(route="consumables", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+def get_consumables(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        return _json_response(queries.get_consumables(_connect()), 200)
+    except Exception as exc:
+        logging.exception("get_consumables failed")
         return _json_response({"error": str(exc)}, 500)
 
 

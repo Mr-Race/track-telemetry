@@ -5,6 +5,7 @@
     "FUNCTIONS_WORKER_RUNTIME": "python",
     "SQL_SERVER": "track-telemetry.database.windows.net",
     "SQL_DATABASE": "free-sql-db-7848405",
-    "STORAGE_ACCOUNT_URL": "https://racechronoraw.blob.core.windows.net"
+    "STORAGE_ACCOUNT_URL": "https://racechronoraw.blob.core.windows.net",
+    "MAPS_CLIENT_ID": "ec839a5c-896e-4ba0-8dd2-d95da8550d0e"
   }
 }

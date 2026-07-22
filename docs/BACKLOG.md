@@ -69,12 +69,8 @@ Block 4.
 
 ### Block 4 — React dashboard core
 The dashboard itself is the foundation; everything else in this
-block renders into it, so build it first. Foundation, session list,
-and session summary are done (see `## Done`); satellite view, GPS
-overlay, weather section, benchmarks, and consumables tracker remain.
-- [ ] **Dashboard: satellite track view** — satellite image of the
-      track for the selected session (static map tile centered on
-      track coords is enough for v1).
+block renders into it, so build it first. Everything except the two
+items explicitly blocked on earlier blocks is done (see `## Done`).
 - [ ] **Dashboard: GPS trace overlay** — draw the car's driven line
       over the satellite view, RaceChrono-style, for a selected
       lap/session. Depends on Block 3's sample-level GPS storage.
@@ -83,22 +79,6 @@ overlay, weather section, benchmarks, and consumables tracker remain.
       pace in cool vs hot sessions" views once enough data
       accumulates. Full value once Block 2's weather auto-fetch is
       also in place.
-- [ ] **Dashboard: friends' benchmark laps (v1)** — manually entered
-      benchmark times per track/config with driver name and date;
-      shown alongside my PB in track view ("target" laps). No
-      accounts, no uploads — just a benchmarks table.
-- [ ] **Dashboard: consumables life tracker** — migrate the
-      standalone pad-life tracker into the platform. Track per
-      consumable: brake pads (per axle), brake fluid, tire tread /
-      heat cycles (per set), transmission fluid, engine oil, etc.
-      Schema: consumables table (item, install_date, install
-      session/odometer, service life in sessions or months, notes);
-      wear derived automatically from the sessions table (sessions
-      elapsed since install) rather than manual counts. Dashboard
-      widget: remaining-life bars per item, warnings when a track
-      day would exceed service life ("brake fluid due before next
-      event"). v1 manual install/replacement entries; later: a
-      pre-event checklist view.
 
 ### Block 5 — Auth foundation (Entra ID)
 Required before any write-capable dashboard feature (Block 6) and
@@ -226,3 +206,24 @@ Do last — documents the finished system.
       lap-time consistency (stdev across valid laps). Rendered as stat
       tiles + a color-coded corner-delta table on the session detail
       page.
+- [x] 2026-07-22 — Dashboard: satellite track view — Azure Maps
+      account `maps-track-telemetry` (Gen2/G2, global), accessed only
+      via the Function App's managed identity (`Azure Maps Data
+      Reader` role, no key ever leaves the server). New
+      GET /api/tracks/{id}/satellite proxies the Get Map Static Image
+      API, framing the bbox computed from that track's corner apex
+      coordinates (ingest/maps.py, zoom picked analytically from the
+      Web Mercator meters-per-pixel formula, validated against
+      Lightning and Thunderbolt). Rendered as an <img> on the session
+      detail page — no client-side map key exposure.
+- [x] 2026-07-22 — Dashboard: friends' benchmark laps (v1) — new
+      dbo.benchmarks table (sql/07_benchmarks.sql, manual INSERT, no
+      write API) and GET /api/tracks/{id}/benchmarks, merged with my
+      all-time personal best at that track into one ranked leaderboard
+      on the session detail page.
+- [x] 2026-07-22 — Dashboard: consumables life tracker (v1) — new
+      dbo.consumables table (sql/08_consumables.sql, manual INSERT) and
+      GET /api/consumables, computing sessions/months elapsed since
+      install server-side. New /consumables dashboard page with
+      remaining-life bars (good/warning/critical) and an overdue
+      state; table starts empty pending real install data.

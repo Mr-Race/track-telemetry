@@ -54,9 +54,9 @@ def list_sessions(cnx, event_id=None):
 def get_session_detail(cnx, session_id):
     cur = cnx.cursor()
     cur.execute("""
-        SELECT s.session_id, s.event_id, e.event_name, t.track_name,
-               s.session_number, s.session_date, s.run_group,
-               s.weather, s.air_temp_f, s.source_file
+        SELECT s.session_id, s.event_id, e.event_name, t.track_id,
+               t.track_name, s.session_number, s.session_date,
+               s.run_group, s.weather, s.air_temp_f, s.source_file
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
@@ -67,11 +67,11 @@ def get_session_detail(cnx, session_id):
 
     session = {
         "session_id": row[0], "event_id": row[1], "event_name": row[2],
-        "track_name": row[3], "session_number": row[4],
-        "session_date": str(row[5]), "run_group": row[6],
-        "weather": row[7],
-        "air_temp_f": float(row[8]) if row[8] is not None else None,
-        "source_file": row[9],
+        "track_id": row[3], "track_name": row[4], "session_number": row[5],
+        "session_date": str(row[6]), "run_group": row[7],
+        "weather": row[8],
+        "air_temp_f": float(row[9]) if row[9] is not None else None,
+        "source_file": row[10],
     }
 
     cur.execute("""
@@ -250,7 +250,8 @@ def session_summary(cnx, session_id):
 
     return {
         "session_id": row[0], "event_id": row[1], "event_name": row[2],
-        "track_name": row[4], "session_number": row[5],
+        "track_id": track_id, "track_name": row[4],
+        "session_number": row[5],
         "session_date": str(session_date), "run_group": row[7],
         "weather": row[8],
         "air_temp_f": float(row[9]) if row[9] is not None else None,
@@ -260,3 +261,95 @@ def session_summary(cnx, session_id):
         "prior_session_id": prior_session_id,
         "corner_deltas": corner_deltas,
     }
+
+
+def get_track_benchmarks(cnx, track_id):
+    """My all-time personal best at this track, plus any manually
+    entered friends' benchmark laps."""
+    cur = cnx.cursor()
+    cur.execute("SELECT track_name FROM dbo.tracks WHERE track_id = ?",
+                track_id)
+    row = cur.fetchone()
+    if row is None:
+        raise ValueError(f"No track with track_id={track_id}")
+    track_name = row[0]
+
+    cur.execute("""
+        SELECT TOP 1 l.lap_time_ms, l.session_id, s.session_date
+        FROM dbo.laps l
+        JOIN dbo.sessions s ON s.session_id = l.session_id
+        JOIN dbo.events e ON e.event_id = s.event_id
+        WHERE e.track_id = ? AND l.is_valid = 1
+        ORDER BY l.lap_time_ms ASC""", track_id)
+    pb_row = cur.fetchone()
+    personal_best = None
+    if pb_row is not None:
+        personal_best = {
+            "lap_time_ms": pb_row[0], "lap_time": fmt_ms(pb_row[0]),
+            "session_id": pb_row[1], "session_date": str(pb_row[2]),
+        }
+
+    cur.execute("""
+        SELECT benchmark_id, driver_name, lap_time_ms, set_date, notes
+        FROM dbo.benchmarks WHERE track_id = ?
+        ORDER BY lap_time_ms ASC""", track_id)
+    benchmarks = [
+        {
+            "benchmark_id": r[0], "driver_name": r[1],
+            "lap_time_ms": r[2], "lap_time": fmt_ms(r[2]),
+            "set_date": str(r[3]) if r[3] is not None else None,
+            "notes": r[4],
+        }
+        for r in cur.fetchall()
+    ]
+
+    return {
+        "track_id": track_id, "track_name": track_name,
+        "personal_best": personal_best, "benchmarks": benchmarks,
+    }
+
+
+def get_consumables(cnx):
+    """Every tracked consumable with sessions/months elapsed since
+    install, so the dashboard can render remaining-life bars without
+    the caller doing date math."""
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT c.consumable_id, c.item_name, c.install_date,
+               c.install_session_id, c.service_life_sessions,
+               c.service_life_months, c.notes,
+               (SELECT COUNT(*) FROM dbo.sessions s2
+                WHERE s2.session_date >= c.install_date)
+                   AS sessions_since_install,
+               DATEDIFF(month, c.install_date, GETDATE())
+                   AS months_since_install
+        FROM dbo.consumables c
+        ORDER BY c.item_name""")
+
+    consumables = []
+    for r in cur.fetchall():
+        service_life_sessions, service_life_months = r[4], r[5]
+        sessions_since, months_since = r[7], r[8]
+
+        remaining_pct = None
+        if service_life_sessions:
+            remaining_pct = 1 - sessions_since / service_life_sessions
+        if service_life_months:
+            by_months = 1 - months_since / service_life_months
+            remaining_pct = (by_months if remaining_pct is None
+                              else min(remaining_pct, by_months))
+
+        consumables.append({
+            "consumable_id": r[0], "item_name": r[1],
+            "install_date": str(r[2]),
+            "install_session_id": r[3],
+            "service_life_sessions": service_life_sessions,
+            "service_life_months": service_life_months,
+            "notes": r[6],
+            "sessions_since_install": sessions_since,
+            "months_since_install": months_since,
+            "remaining_pct": (round(max(0.0, remaining_pct) * 100, 1)
+                              if remaining_pct is not None else None),
+            "overdue": (remaining_pct is not None and remaining_pct <= 0),
+        })
+    return consumables
