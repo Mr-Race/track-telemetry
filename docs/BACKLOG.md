@@ -16,6 +16,19 @@
   down the line — no per-seat or Pro-license exposure; everything
   user-facing stays on free-tier, open tooling.
 
+## MVP checklist (launch readiness)
+The six pieces that define "launched": a visitor can land on the
+site, sign in, land on a home screen, and use the core dashboard.
+Items link to the backlog block that tracks the actual work.
+- [x] List of sessions with drill-down detail — done, see `## Done`
+      (2026-07-22 session list view + session detail page)
+- [x] Consumable dashboard — done, see `## Done` (2026-07-22
+      consumables life tracker)
+- [ ] Track directory — new item, see Block 4
+- [ ] Landing page (public, pre-login) — new item, see Block 5
+- [ ] Login page — see Block 5's "Dashboard login with Entra ID"
+- [ ] Landing page after login (dashboard home) — new item, see Block 5
+
 ## Backlog (open)
 Grouped into blocks; each block is buildable independently of the
 others. Order below is the recommended build sequence — quick
@@ -69,8 +82,18 @@ Block 4.
 
 ### Block 4 — React dashboard core
 The dashboard itself is the foundation; everything else in this
-block renders into it, so build it first. Everything except the two
-items explicitly blocked on earlier blocks is done (see `## Done`).
+block renders into it, so build it first. Session list, session
+summary, satellite view, benchmarks, and consumables are done (see
+`## Done`). GPS overlay and weather section remain genuinely blocked
+on earlier blocks; the track directory below is new, unblocked work
+(part of the MVP checklist above).
+- [ ] **Dashboard: track directory** — read-only list of tracks/
+      configurations (name, configuration, length, corner count) with
+      my personal best per configuration. Reuses the personal-best
+      query already exposed by GET /api/tracks/{id}/benchmarks; just
+      needs a list endpoint over dbo.tracks and a page linking each
+      row to its track view. No write capability — that's Block 6's
+      track management interface.
 - [ ] **Dashboard: GPS trace overlay** — draw the car's driven line
       over the satellite view, RaceChrono-style, for a selected
       lap/session. Depends on Block 3's sample-level GPS storage.
@@ -94,6 +117,15 @@ before the custom-domain login page below.
       open initially. Foundation for track management writes,
       friends' benchmarks, multi-user v2. Schema prep: add driver_id
       to sessions early — cheap now, painful later.
+- [ ] **Landing page (public, pre-login)** — the site's front door for
+      a stranger/portfolio visitor: what the project is, a
+      screenshot/preview, and a sign-in call to action. No data behind
+      it, so it can ship even before the Entra ID work above lands.
+- [ ] **Post-login landing page (dashboard home)** — first screen
+      after sign-in: quick links (most recent session, consumables due
+      soon, track directory) rather than dropping straight into the
+      session list. Depends on the auth item above (needs to know
+      you're signed in) and benefits from Block 4's track directory.
 - [ ] OAuth 2.1 + PKCE via Entra ID on the MCP server
 - [ ] **Login page on a custom domain (www.mr-race.com)** — front the
       MCP connector/dashboard with a proper login page on the owned
