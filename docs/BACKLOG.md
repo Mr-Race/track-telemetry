@@ -1,5 +1,17 @@
 # Track Telemetry Platform — Backlog
 
+## Guiding principles
+- **Cloud-native, Azure-first — applies to every item below.** All
+  features are built on Azure managed services (Functions, Container
+  Apps, Logic Apps, Static Web Apps, Azure SQL serverless, Blob,
+  Entra); no locally hosted components, no VMs as permanent
+  infrastructure (ephemeral tooling VMs only, e.g. Power BI
+  authoring), no on-box state. Prefer serverless/consumption tiers,
+  managed identity over secrets, and infrastructure that scales to
+  zero. When a non-Azure service is unavoidable (e.g. Open-Meteo,
+  OneDrive trigger, GitHub), it integrates via API against Azure-
+  hosted compute — nothing runs outside the cloud.
+
 ## Feature requests
 - [ ] **Auto-fetch session weather at ingestion** — when a session is
       loaded, call Open-Meteo archive API (free, keyless) with track
