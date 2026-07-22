@@ -16,18 +16,32 @@
   down the line — no per-seat or Pro-license exposure; everything
   user-facing stays on free-tier, open tooling.
 
-## Feature requests
+## Backlog (open)
+Grouped into blocks; each block is buildable independently of the
+others. Order below is the recommended build sequence — quick
+independent wins first, then the sample-storage foundation the GPS
+trace overlay needs, then the dashboard core, then auth (required
+before any write-capable dashboard feature), then hardening and the
+v2/portfolio tail.
+
+### Block 1 — Data & parser enhancements
+No dependencies on anything else in the backlog; small, self-contained.
+- [ ] Devil's Pass T9 apex validation from first GPS trace on that
+      layout (current pin is provisional)
+- [ ] Corner names (Jersey Devil, Lightbulb, etc.) in corners table
+- [ ] OBD channels in corner metrics (throttle position at apex,
+      RPM at exit) — channels already present in CSV v3 exports
+
+### Block 2 — Ingestion pipeline expansion
+Builds on the existing /api/ingest path; independent of the dashboard
+and auth work below.
 - [ ] **Auto-fetch session weather at ingestion** — when a session is
       loaded, call Open-Meteo archive API (free, keyless) with track
       lat/lon + session start_time; populate sessions.weather and
       air_temp_f automatically. Consider adding columns: humidity_pct,
-      wind_mph, precip_in, track-relevant conditions summary.
-      Widget below needs humidity + observation time captured, not
-      just temp/summary.
-- [ ] **Dashboard weather section** — per-session conditions panel in
-      the React dashboard (temp, humidity, day/date, session time);
-      enable "compare my pace in cool vs hot sessions" views once
-      enough data accumulates.
+      wind_mph, precip_in, track-relevant conditions summary. The
+      dashboard weather widget (Block 4) needs humidity + observation
+      time captured, not just temp/summary.
 - [ ] **Backfill historical sessions** — upload all pre-existing
       RaceChrono CSVs (before the ingest Function/Shortcut existed)
       through the same /api/ingest path so past track days show up
@@ -44,15 +58,19 @@
       the Shortcut popup. Retires the 3-prompt Shortcut once trusted.
       (Also still worth checking whether RaceChrono can auto-export
       on session stop.)
-- [ ] **Login page on a custom domain (www.mr-race.com)** — front the
-      MCP connector/dashboard with a proper login page on the owned
-      domain instead of the raw Container Apps URL; ties into the
-      planned OAuth 2.1 + PKCE work below.
-- [ ] **Push session summaries/analysis to the dashboard** — after
-      ingest, generate a per-session summary (fastest lap, corner
-      deltas vs. prior sessions at the same track, consistency/std
-      dev across valid laps) and surface it as a dashboard view rather
-      than something you have to ask Claude for on demand.
+
+### Block 3 — Deep telemetry storage
+Independent lift, but a prerequisite for the GPS trace overlay in
+Block 4.
+- [ ] telemetry_samples table or Parquet-in-Blob for sample-level
+      analysis (full speed traces, throttle/RPM overlays) — either
+      parse raw CSV from Blob on demand, or have the ingestion
+      Function persist a downsampled (~5Hz) lat/lon trace per lap.
+
+### Block 4 — React dashboard core
+The dashboard itself is the foundation; everything else in this
+block renders into it, so build it first.
+- [ ] React dashboard on Azure Static Web Apps (PWA)
 - [ ] **Dashboard: session list view** — all sessions with track,
       date, best lap, average of valid laps; tap/click to open
       session detail.
@@ -61,20 +79,17 @@
       track coords is enough for v1).
 - [ ] **Dashboard: GPS trace overlay** — draw the car's driven line
       over the satellite view, RaceChrono-style, for a selected
-      lap/session. DEPENDS ON: sample-level GPS storage — either
-      parse raw CSV from Blob on demand, or have the ingestion
-      Function persist a downsampled (~5Hz) lat/lon trace per lap.
-- [ ] **Dashboard: track management interface** — view and add
-      tracks/configurations with track info (length, corner count,
-      location) and my personal best per configuration (computed
-      from laps table). NOTE: first write-capable dashboard feature —
-      requires write API endpoints on the Function app + auth on
-      those routes (read endpoints can stay open/simple).
-- [ ] **Dashboard: corner apex editor** — within track management,
-      click/tap on the satellite view to place or adjust corner apex
-      coordinates and zone radii, writing to the corners table.
-      Replaces the manual Google Maps coordinate workflow for new
-      tracks.
+      lap/session. Depends on Block 3's sample-level GPS storage.
+- [ ] **Dashboard weather section** — per-session conditions panel
+      (temp, humidity, day/date, session time); enable "compare my
+      pace in cool vs hot sessions" views once enough data
+      accumulates. Full value once Block 2's weather auto-fetch is
+      also in place.
+- [ ] **Push session summaries/analysis to the dashboard** — after
+      ingest, generate a per-session summary (fastest lap, corner
+      deltas vs. prior sessions at the same track, consistency/std
+      dev across valid laps) and surface it as a dashboard view rather
+      than something you have to ask Claude for on demand.
 - [ ] **Dashboard: friends' benchmark laps (v1)** — manually entered
       benchmark times per track/config with driver name and date;
       shown alongside my PB in track view ("target" laps). No
@@ -91,6 +106,10 @@
       day would exceed service life ("brake fluid due before next
       event"). v1 manual install/replacement entries; later: a
       pre-event checklist view.
+
+### Block 5 — Auth foundation (Entra ID)
+Required before any write-capable dashboard feature (Block 6) and
+before the custom-domain login page below.
 - [ ] **Dashboard login with Entra ID (modern auth stack)** —
       authentication for the React dashboard and write APIs:
       Entra External ID tenant (successor to AD B2C; me as primary
@@ -102,6 +121,45 @@
       open initially. Foundation for track management writes,
       friends' benchmarks, multi-user v2. Schema prep: add driver_id
       to sessions early — cheap now, painful later.
+- [ ] OAuth 2.1 + PKCE via Entra ID on the MCP server
+- [ ] **Login page on a custom domain (www.mr-race.com)** — front the
+      MCP connector/dashboard with a proper login page on the owned
+      domain instead of the raw Container Apps URL; depends on the
+      two auth items above.
+
+### Block 6 — Write-capable dashboard features
+Depend on Block 5's auth foundation (write endpoints require it).
+- [ ] **Dashboard: track management interface** — view and add
+      tracks/configurations with track info (length, corner count,
+      location) and my personal best per configuration (computed
+      from laps table). First write-capable dashboard feature —
+      requires write API endpoints on the Function app + auth on
+      those routes (read endpoints can stay open/simple).
+- [ ] **Dashboard: corner apex editor** — within track management,
+      click/tap on the satellite view to place or adjust corner apex
+      coordinates and zone radii, writing to the corners table.
+      Replaces the manual Google Maps coordinate workflow for new
+      tracks.
+
+### Block 7 — Hardening
+Independent of dashboard content; production-readiness items that
+can run anytime.
+- [ ] API Management in front of the ingest endpoint (hardening story)
+- [ ] Lock storage account networking to selected networks
+      (documented hardening step)
+
+### Block 8 — Multi-user platform (v2 ambition)
+Depends on Block 5's driver_id schema prep — design that decision
+before building this.
+- [ ] **Multi-user platform (v2 ambition)** — friends create
+      accounts, upload their own RaceChrono sessions, share best
+      laps and corner speeds. MAJOR scope: adds identity/auth
+      (Entra External ID), per-user data ownership on sessions/laps,
+      and sharing permissions.
+
+### Block 9 — Reporting & portfolio wrap-up
+Do last — documents the finished system.
+- [ ] Architecture diagram + README writeup (portfolio deliverable)
 
 ## Weekend 2 (complete)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
@@ -139,30 +197,6 @@
       phone. Added via Settings -> Connectors -> Add custom
       connector, no auth. Confirmed working end-to-end from the
       phone.
-
-## Weekend 3 (planned)
-- [ ] OAuth 2.1 + PKCE via Entra ID on the MCP server
-- [ ] React dashboard on Azure Static Web Apps (PWA)
-- [ ] Architecture diagram + README writeup (portfolio deliverable)
-
-## Later / nice-to-have
-- [ ] API Management in front of the ingest endpoint (hardening story)
-- [ ] telemetry_samples table or Parquet-in-Blob for sample-level
-      analysis (full speed traces, throttle/RPM overlays)
-- [ ] OBD channels in corner metrics (throttle position at apex,
-      RPM at exit) — channels already present in CSV v3 exports
-- [ ] Devil's Pass T9 apex validation from first GPS trace on that
-      layout (current pin is provisional)
-- [ ] Lock storage account networking to selected networks
-      (documented hardening step)
-- [ ] Corner names (Jersey Devil, Lightbulb, etc.) in corners table
-- [ ] **Multi-user platform (v2 ambition)** — friends create
-      accounts, upload their own RaceChrono sessions, share best
-      laps and corner speeds. MAJOR scope: adds identity/auth
-      (Entra External ID), per-user data ownership on sessions/laps,
-      and sharing permissions. Design decision to make BEFORE
-      building: the driver_id schema prep noted in the Entra login
-      item above.
 
 ## Done
 - [x] 2026-07-03 — Resource group, Azure SQL (free tier, Entra-only), Storage
