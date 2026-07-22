@@ -3,6 +3,7 @@
 sql
 docs
 data
+dashboard
 README.md
 local.settings.json
 .venv

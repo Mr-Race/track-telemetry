@@ -15,6 +15,7 @@ import uuid
 
 import azure.functions as func
 
+from ingest import queries
 from ingest.cloud import get_cloud_connection, upload_raw_blob
 from ingest.racechrono_parser import (
     compute_corner_metrics, compute_laps, fetch_corners, fmt_ms, load,
@@ -26,10 +27,63 @@ app = func.FunctionApp()
 RAW_CONTAINER = "racechrono-raw"
 
 
+def _connect():
+    return get_cloud_connection(os.environ["SQL_SERVER"],
+                                 os.environ["SQL_DATABASE"])
+
+
 def _json_response(payload, status_code):
     return func.HttpResponse(
         json.dumps(payload), status_code=status_code,
         mimetype="application/json")
+
+
+# Read endpoints for the React dashboard (Block 4). Left anonymous for now,
+# same as the MCP server's read path; write endpoints added in a later
+# block will require the Entra ID auth from Block 5.
+@app.route(route="sessions", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+def list_sessions(req: func.HttpRequest) -> func.HttpResponse:
+    event_id = req.params.get("event_id")
+    try:
+        event_id = int(event_id) if event_id is not None else None
+    except ValueError:
+        return _json_response({"error": "event_id must be an integer"}, 400)
+
+    try:
+        return _json_response(queries.list_sessions(_connect(), event_id),
+                               200)
+    except Exception as exc:
+        logging.exception("list_sessions failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+@app.route(route="sessions/{session_id:int}", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+def get_session_detail(req: func.HttpRequest) -> func.HttpResponse:
+    session_id = int(req.route_params["session_id"])
+    try:
+        return _json_response(
+            queries.get_session_detail(_connect(), session_id), 200)
+    except ValueError as exc:
+        return _json_response({"error": str(exc)}, 404)
+    except Exception as exc:
+        logging.exception("get_session_detail failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+@app.route(route="sessions/{session_id:int}/summary", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+def get_session_summary(req: func.HttpRequest) -> func.HttpResponse:
+    session_id = int(req.route_params["session_id"])
+    try:
+        return _json_response(
+            queries.session_summary(_connect(), session_id), 200)
+    except ValueError as exc:
+        return _json_response({"error": str(exc)}, 404)
+    except Exception as exc:
+        logging.exception("get_session_summary failed")
+        return _json_response({"error": str(exc)}, 500)
 
 
 @app.route(route="ingest", methods=["POST"],
@@ -63,8 +117,7 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
 
         laps = compute_laps(samples)
 
-        cnx = get_cloud_connection(os.environ["SQL_SERVER"],
-                                    os.environ["SQL_DATABASE"])
+        cnx = _connect()
         corners = fetch_corners(cnx, event_id)
         metrics = compute_corner_metrics(samples, corners) if corners else []
 
