@@ -109,8 +109,23 @@ before the custom-domain login page below.
       primary passwordless sign-in; Function app validates bearer
       tokens — write endpoints require auth, read endpoints may stay
       open initially. Foundation for track management writes,
-      friends' benchmarks, multi-user v2. Schema prep: add driver_id
-      to sessions early — cheap now, painful later.
+      friends' benchmarks, multi-user v2.
+      - [x] 2026-07-23 — Schema prep: dbo.drivers table + FK'd,
+            NOT NULL, backfilled driver_id on dbo.sessions
+            (sql/09_drivers.sql). Built the real table now rather than
+            a bare nullable column, since the table only had 7 rows —
+            Block 8 (multi-user v2) won't need to touch historical
+            data later. DEFAULT constraint (driver_id=1, the sole
+            'Me' row) means ingest.py's existing INSERT needs no code
+            changes yet. Verified: drivers has 1 row, all 7 sessions
+            backfilled to driver_id=1, FK_sessions_drivers exists,
+            list_sessions/get_session_detail still return correctly
+            against the live DB.
+      - [ ] Entra External ID tenant + app registration (portal-driven,
+            not scriptable — next step)
+      - [ ] MSAL React integration in the dashboard
+      - [ ] Function app bearer-token validation (once Block 6 has a
+            write endpoint to protect)
 - [ ] **Post-login landing page (dashboard home)** — first screen
       after sign-in: quick links (most recent session, consumables due
       soon, track directory) rather than dropping straight into the
