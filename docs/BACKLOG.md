@@ -121,9 +121,26 @@ before the custom-domain login page below.
             backfilled to driver_id=1, FK_sessions_drivers exists,
             list_sessions/get_session_detail still return correctly
             against the live DB.
-      - [ ] Entra External ID tenant + app registration (portal-driven,
-            not scriptable — next step)
-      - [ ] MSAL React integration in the dashboard
+      - [x] 2026-07-23 — Entra External ID (CIAM) tenant provisioned
+            (tenant `cc8e128a-ad5b-49af-a3ce-35e7c3c3e30c`,
+            `tracktelemetry.onmicrosoft.com`), SPA app "Track Telemetry
+            Dashboard" registered (client `99a220cf-5739-4be8-8d68-55ebaa905ad3`,
+            public client, no secret), user flow `SignUpSignIn` created
+            and attached. Note: the CIAM user-flow wizard only offers
+            email + password as a primary identity provider today, not
+            passkeys/passwordless as originally scoped above — revisit
+            via Entra's Authentication Methods policy later if wanted.
+      - [x] 2026-07-23 — MSAL React integration in the dashboard —
+            `@azure/msal-browser` + `@azure/msal-react` added,
+            `MsalProvider` wraps the app (`dashboard/src/main.tsx`),
+            sign-in/out control in the header (`dashboard/src/App.tsx`).
+            Interactive sign-in confirmed working end-to-end (auth-code
+            + PKCE via `loginRedirect`). Two config gotchas worth
+            knowing if this needs touching again: this CIAM tenant's
+            OIDC issuer resolves to the tenant-GUID subdomain rather
+            than the friendly domain, so `authConfig.ts`'s
+            `knownAuthorities` lists both; and Azure AD's redirect URI
+            match is byte-exact (trailing slash included).
       - [ ] Function app bearer-token validation (once Block 6 has a
             write endpoint to protect)
 - [ ] **Post-login landing page (dashboard home)** — first screen
