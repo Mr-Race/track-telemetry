@@ -86,6 +86,16 @@ def get_session_summary(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"error": str(exc)}, 500)
 
 
+@app.route(route="tracks", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+def list_tracks(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        return _json_response(queries.list_tracks(_connect()), 200)
+    except Exception as exc:
+        logging.exception("list_tracks failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
 @app.route(route="tracks/{track_id:int}/satellite", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
 def get_track_satellite(req: func.HttpRequest) -> func.HttpResponse:

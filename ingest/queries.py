@@ -263,6 +263,43 @@ def session_summary(cnx, session_id):
     }
 
 
+def list_tracks(cnx):
+    """Every track/configuration with corner count and my personal best,
+    for the read-only track directory page."""
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT t.track_id, t.track_name, t.configuration, t.length_miles,
+               (SELECT COUNT(*) FROM dbo.corners c
+                WHERE c.track_id = t.track_id) AS corner_count,
+               pb.lap_time_ms, pb.session_id, pb.session_date
+        FROM dbo.tracks t
+        OUTER APPLY (
+            SELECT TOP 1 l.lap_time_ms, l.session_id, s.session_date
+            FROM dbo.laps l
+            JOIN dbo.sessions s ON s.session_id = l.session_id
+            JOIN dbo.events e ON e.event_id = s.event_id
+            WHERE e.track_id = t.track_id AND l.is_valid = 1
+            ORDER BY l.lap_time_ms ASC
+        ) pb
+        ORDER BY t.track_name, t.configuration""")
+
+    tracks = []
+    for r in cur.fetchall():
+        personal_best = None
+        if r[5] is not None:
+            personal_best = {
+                "lap_time_ms": r[5], "lap_time": fmt_ms(r[5]),
+                "session_id": r[6], "session_date": str(r[7]),
+            }
+        tracks.append({
+            "track_id": r[0], "track_name": r[1], "configuration": r[2],
+            "length_miles": float(r[3]) if r[3] is not None else None,
+            "corner_count": r[4],
+            "personal_best": personal_best,
+        })
+    return tracks
+
+
 def get_track_benchmarks(cnx, track_id):
     """My all-time personal best at this track, plus any manually
     entered friends' benchmark laps."""

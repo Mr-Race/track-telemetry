@@ -68,6 +68,20 @@ export interface TrackBenchmarks {
   benchmarks: Benchmark[];
 }
 
+export interface Track {
+  track_id: number;
+  track_name: string;
+  configuration: string | null;
+  length_miles: number | null;
+  corner_count: number;
+  personal_best: {
+    lap_time_ms: number;
+    lap_time: string;
+    session_id: number;
+    session_date: string;
+  } | null;
+}
+
 export interface Consumable {
   consumable_id: number;
   item_name: string;
@@ -114,6 +128,10 @@ export function getSessionSummary(sessionId: number): Promise<SessionSummary> {
 
 export function getTrackBenchmarks(trackId: number): Promise<TrackBenchmarks> {
   return getJson(`/tracks/${trackId}/benchmarks`);
+}
+
+export function listTracks(): Promise<Track[]> {
+  return getJson("/tracks");
 }
 
 export function getConsumables(): Promise<Consumable[]> {

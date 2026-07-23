@@ -24,7 +24,8 @@ Items link to the backlog block that tracks the actual work.
       (2026-07-22 session list view + session detail page)
 - [x] Consumable dashboard — done, see `## Done` (2026-07-22
       consumables life tracker)
-- [ ] Track directory — new item, see Block 4
+- [x] Track directory — done, see `## Done` (2026-07-23 track
+      directory + track view pages)
 - [ ] Landing page (public, pre-login) — new item, see Block 5
 - [ ] Login page — see Block 5's "Dashboard login with Entra ID"
 - [ ] Landing page after login (dashboard home) — new item, see Block 5
@@ -83,17 +84,9 @@ Block 4.
 ### Block 4 — React dashboard core
 The dashboard itself is the foundation; everything else in this
 block renders into it, so build it first. Session list, session
-summary, satellite view, benchmarks, and consumables are done (see
-`## Done`). GPS overlay and weather section remain genuinely blocked
-on earlier blocks; the track directory below is new, unblocked work
-(part of the MVP checklist above).
-- [ ] **Dashboard: track directory** — read-only list of tracks/
-      configurations (name, configuration, length, corner count) with
-      my personal best per configuration. Reuses the personal-best
-      query already exposed by GET /api/tracks/{id}/benchmarks; just
-      needs a list endpoint over dbo.tracks and a page linking each
-      row to its track view. No write capability — that's Block 6's
-      track management interface.
+summary, satellite view, benchmarks, consumables, and the track
+directory are done (see `## Done`). GPS overlay and weather section
+remain genuinely blocked on earlier blocks.
 - [ ] **Dashboard: GPS trace overlay** — draw the car's driven line
       over the satellite view, RaceChrono-style, for a selected
       lap/session. Depends on Block 3's sample-level GPS storage.
@@ -259,3 +252,13 @@ Do last — documents the finished system.
       install server-side. New /consumables dashboard page with
       remaining-life bars (good/warning/critical) and an overdue
       state; table starts empty pending real install data.
+- [x] 2026-07-23 — Dashboard: track directory — new GET /api/tracks
+      (ingest/queries.py's list_tracks, reusing the personal-best
+      pattern from get_track_benchmarks) and a /tracks page listing
+      every track/configuration with length, corner count, and
+      personal best, linking to a new /tracks/:trackId view that
+      reuses the existing TrackPanel (satellite + benchmarks).
+      Verified end-to-end against the live Azure SQL DB via local
+      `func start` + dashboard dev server: /api/tracks returns real
+      data for all three configs, and both null-length and
+      no-personal-best states (Devil's Pass) render cleanly.
