@@ -1,10 +1,42 @@
 import { Link, Route, Routes } from "react-router-dom";
+import {
+  AuthenticatedTemplate,
+  UnauthenticatedTemplate,
+  useMsal,
+} from "@azure/msal-react";
 import { LandingPage } from "./pages/LandingPage";
 import { SessionListPage } from "./pages/SessionListPage";
 import { SessionDetailPage } from "./pages/SessionDetailPage";
 import { ConsumablesPage } from "./pages/ConsumablesPage";
 import { TrackDirectoryPage } from "./pages/TrackDirectoryPage";
 import { TrackViewPage } from "./pages/TrackViewPage";
+import { loginRequest } from "./authConfig";
+
+function AuthControl() {
+  const { instance, accounts } = useMsal();
+
+  return (
+    <>
+      <AuthenticatedTemplate>
+        <span className="auth-account">{accounts[0]?.name ?? accounts[0]?.username}</span>
+        <button
+          className="auth-button"
+          onClick={() => instance.logoutRedirect()}
+        >
+          Sign out
+        </button>
+      </AuthenticatedTemplate>
+      <UnauthenticatedTemplate>
+        <button
+          className="auth-button"
+          onClick={() => instance.loginRedirect(loginRequest)}
+        >
+          Sign in
+        </button>
+      </UnauthenticatedTemplate>
+    </>
+  );
+}
 
 function App() {
   return (
@@ -17,6 +49,9 @@ function App() {
           <Link to="/tracks">Tracks</Link>
           <Link to="/consumables">Consumables</Link>
         </nav>
+        <div className="auth-control">
+          <AuthControl />
+        </div>
       </header>
       <main>
         <Routes>
