@@ -26,7 +26,8 @@ Items link to the backlog block that tracks the actual work.
       consumables life tracker)
 - [x] Track directory — done, see `## Done` (2026-07-23 track
       directory + track view pages)
-- [ ] Landing page (public, pre-login) — new item, see Block 5
+- [x] Landing page (public, pre-login) — done, see `## Done`
+      (2026-07-23 landing page)
 - [ ] Login page — see Block 5's "Dashboard login with Entra ID"
 - [ ] Landing page after login (dashboard home) — new item, see Block 5
 
@@ -110,10 +111,6 @@ before the custom-domain login page below.
       open initially. Foundation for track management writes,
       friends' benchmarks, multi-user v2. Schema prep: add driver_id
       to sessions early — cheap now, painful later.
-- [ ] **Landing page (public, pre-login)** — the site's front door for
-      a stranger/portfolio visitor: what the project is, a
-      screenshot/preview, and a sign-in call to action. No data behind
-      it, so it can ship even before the Entra ID work above lands.
 - [ ] **Post-login landing page (dashboard home)** — first screen
       after sign-in: quick links (most recent session, consumables due
       soon, track directory) rather than dropping straight into the
@@ -262,3 +259,13 @@ Do last — documents the finished system.
       `func start` + dashboard dev server: /api/tracks returns real
       data for all three configs, and both null-length and
       no-personal-best states (Devil's Pass) render cleanly.
+- [x] 2026-07-23 — Landing page (public, pre-login) — new LandingPage
+      at "/", now the site's front door: project blurb, feature
+      summary, a live stat-tile preview (sessions logged/tracks
+      tracked/best lap, computed client-side from the existing
+      session and track list endpoints), and a "View the dashboard"
+      CTA linking to the session list. Session list moved from "/" to
+      "/sessions" to free up the root route; updated the nav and the
+      one stale internal link (SessionDetailPage's back-link).
+      Verified in-browser via local dev servers: landing renders with
+      real data, "View the dashboard" and nav links route correctly.

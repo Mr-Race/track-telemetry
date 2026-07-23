@@ -232,3 +232,26 @@ a {
 .life-bar-fill.life-critical {
   background: var(--critical);
 }
+
+.landing-hero {
+  max-width: 560px;
+}
+
+.landing-hero p {
+  color: var(--text-secondary);
+}
+
+.cta-button {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 10px 20px;
+  background: var(--text-primary);
+  color: var(--page);
+  border-radius: 6px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.cta-button:hover {
+  opacity: 0.85;
+}

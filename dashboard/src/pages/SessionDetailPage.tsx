@@ -28,7 +28,7 @@ export function SessionDetailPage() {
   return (
     <div>
       <p>
-        <Link to="/">&larr; All sessions</Link>
+        <Link to="/sessions">&larr; All sessions</Link>
       </p>
       <h2>
         {detail.track_name} &mdash; {detail.event_name}
