@@ -14,6 +14,7 @@ import { ConsumablesPage } from "./pages/ConsumablesPage";
 import { TrackDirectoryPage } from "./pages/TrackDirectoryPage";
 import { TrackViewPage } from "./pages/TrackViewPage";
 import { EventsPage } from "./pages/EventsPage";
+import { EventSummaryPage } from "./pages/EventSummaryPage";
 import { loginRequest } from "./authConfig";
 
 function AuthControl() {
@@ -107,6 +108,14 @@ function App() {
             element={
               <RequireAuth>
                 <TrackViewPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/events/:eventId"
+            element={
+              <RequireAuth>
+                <EventSummaryPage />
               </RequireAuth>
             }
           />

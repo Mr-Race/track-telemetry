@@ -448,3 +448,17 @@ Do last — documents the finished system.
       events through the form, confirmed both `POST /api/events` calls
       and the subsequent `GET /api/events` refresh succeeded against
       the live DB.
+- [x] 2026-07-24 — Dashboard: sessions list grouped by event.
+      `SessionListPage.tsx` now renders one bold event-level row (date
+      range, track, session count, run group, best lap, avg valid lap
+      — all aggregated client-side from `/api/sessions`, no new
+      backend endpoint) with its sessions indented underneath. Event
+      name links to a new placeholder `/events/:eventId`
+      (`EventSummaryPage.tsx`) — a real summary dashboard is deferred,
+      reqs TBD, but the route exists so the link isn't dead. Verified
+      end-to-end: `func start` + `npm run dev` on the default port
+      5173 (a non-default port broke MSAL sign-in — the Codespaces
+      forwarded-port URL didn't match the redirect URI already
+      registered on the Entra app, see Block 5's redirect-URI gotcha),
+      signed in, confirmed the grouped layout against real session
+      data.
