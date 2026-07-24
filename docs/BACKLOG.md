@@ -376,3 +376,22 @@ Do last — documents the finished system.
       onto the front straight: 76% throttle, 6405 RPM). Devil's Pass T9
       apex validation stays blocked — no session has been driven on
       that layout yet, so there's no GPS trace to validate against.
+- [x] 2026-07-24 — Run group reference tables
+      (`sql/11_run_groups.sql`) — new `dbo.organizations`
+      (SCCA-HPDE, NASA-NE-HPDE) and `dbo.run_groups` (FK'd, with a
+      `sort_order` for experience level): SCCA-HPDE has Novice/
+      Intermediate/Advanced, NASA-NE-HPDE has DE1/DE2/DE3/
+      DE4-Instructors. Replaced the old free-text columns rather than
+      adding alongside them, per the project's real-tables-not-text
+      preference: `events.organization` backfilled to
+      `organization_id` (both existing events were 'NASA-NE') then
+      dropped, tightened to `NOT NULL`; `sessions.run_group` dropped
+      in favor of nullable `run_group_id` (nothing to backfill there —
+      it was never populated by ingestion, always a manually-set
+      field). `ingest/queries.py`'s three session queries now
+      `LEFT JOIN run_groups` instead of selecting the old text column;
+      API response shape unchanged (`run_group` is still a plain
+      string or null), so no dashboard changes needed. Verified: both
+      events backfilled correctly before the `NOT NULL` tightening,
+      and `list_sessions`/`get_session_detail` return cleanly against
+      the live DB post-migration.

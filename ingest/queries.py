@@ -11,12 +11,13 @@ def list_sessions(cnx, event_id=None):
     cur = cnx.cursor()
     sql = """
         SELECT s.session_id, s.event_id, e.event_name, t.track_name,
-               s.session_number, s.session_date, s.run_group,
+               s.session_number, s.session_date, rg.group_code,
                s.weather, s.air_temp_f,
                lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
+        LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
         OUTER APPLY (
             SELECT MIN(CASE WHEN l.is_valid = 1 THEN l.lap_time_ms END)
                        AS best_lap_ms,
@@ -56,10 +57,11 @@ def get_session_detail(cnx, session_id):
     cur.execute("""
         SELECT s.session_id, s.event_id, e.event_name, t.track_id,
                t.track_name, s.session_number, s.session_date,
-               s.run_group, s.weather, s.air_temp_f, s.source_file
+               rg.group_code, s.weather, s.air_temp_f, s.source_file
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
+        LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
         WHERE s.session_id = ?""", session_id)
     row = cur.fetchone()
     if row is None:
@@ -207,10 +209,11 @@ def session_summary(cnx, session_id):
     cur.execute("""
         SELECT s.session_id, s.event_id, e.event_name, t.track_id,
                t.track_name, s.session_number, s.session_date,
-               s.run_group, s.weather, s.air_temp_f
+               rg.group_code, s.weather, s.air_temp_f
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
+        LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
         WHERE s.session_id = ?""", session_id)
     row = cur.fetchone()
     if row is None:
