@@ -281,3 +281,38 @@ a {
 .cta-button:hover {
   opacity: 0.85;
 }
+
+.quick-link-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.quick-link-card {
+  flex: 1 1 200px;
+  background: var(--surface);
+  border: 1px solid var(--gridline);
+  border-radius: 6px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.quick-link-card:hover {
+  border-color: var(--text-secondary);
+}
+
+.quick-link-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.quick-link-value {
+  font-size: 18px;
+  font-weight: 600;
+}

@@ -29,7 +29,8 @@ Items link to the backlog block that tracks the actual work.
 - [x] Landing page (public, pre-login) — done, see `## Done`
       (2026-07-23 landing page)
 - [ ] Login page — see Block 5's "Dashboard login with Entra ID"
-- [ ] Landing page after login (dashboard home) — new item, see Block 5
+- [x] Landing page after login (dashboard home) — done, see `## Done`
+      (2026-07-24 post-login dashboard home)
 
 ## Backlog (open)
 Grouped into blocks; each block is buildable independently of the
@@ -143,11 +144,8 @@ before the custom-domain login page below.
             match is byte-exact (trailing slash included).
       - [ ] Function app bearer-token validation (once Block 6 has a
             write endpoint to protect)
-- [ ] **Post-login landing page (dashboard home)** — first screen
-      after sign-in: quick links (most recent session, consumables due
-      soon, track directory) rather than dropping straight into the
-      session list. Depends on the auth item above (needs to know
-      you're signed in) and benefits from Block 4's track directory.
+- [x] **Post-login landing page (dashboard home)** — done, see
+      `## Done` (2026-07-24 dashboard home quick links)
 - [ ] OAuth 2.1 + PKCE via Entra ID on the MCP server
 - [ ] **Login page on a custom domain (www.mr-race.com)** — front the
       MCP connector/dashboard with a proper login page on the owned
@@ -301,3 +299,18 @@ Do last — documents the finished system.
       one stale internal link (SessionDetailPage's back-link).
       Verified in-browser via local dev servers: landing renders with
       real data, "View the dashboard" and nav links route correctly.
+- [x] 2026-07-24 — Block 5 step 4: post-login dashboard home — new
+      DashboardHome page at "/" shown via AuthenticatedTemplate
+      instead of the public LandingPage once signed in
+      (UnauthenticatedTemplate still shows LandingPage). Three quick
+      links reusing existing endpoints: most recent session
+      (listSessions, last entry since the API already orders
+      ascending by date/session_number), consumables due soon
+      (getConsumables, overdue or <25% remaining), and the track
+      directory (listTracks) with a live track count. Verified
+      layout/loading/error states render cleanly via a headless
+      Playwright screenshot of the component (temporarily mounted at
+      a throwaway route, reverted after) since real interactive Entra
+      ID sign-in isn't automatable headlessly in this environment —
+      full authenticated data flow still needs a manual browser check
+      per [[block5_auth_progress]].

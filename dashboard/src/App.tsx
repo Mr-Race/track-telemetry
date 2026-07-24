@@ -5,6 +5,7 @@ import {
   useMsal,
 } from "@azure/msal-react";
 import { LandingPage } from "./pages/LandingPage";
+import { DashboardHome } from "./pages/DashboardHome";
 import { SessionListPage } from "./pages/SessionListPage";
 import { SessionDetailPage } from "./pages/SessionDetailPage";
 import { ConsumablesPage } from "./pages/ConsumablesPage";
@@ -55,7 +56,19 @@ function App() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route
+            path="/"
+            element={
+              <>
+                <AuthenticatedTemplate>
+                  <DashboardHome />
+                </AuthenticatedTemplate>
+                <UnauthenticatedTemplate>
+                  <LandingPage />
+                </UnauthenticatedTemplate>
+              </>
+            }
+          />
           <Route path="/sessions" element={<SessionListPage />} />
           <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
           <Route path="/tracks" element={<TrackDirectoryPage />} />
