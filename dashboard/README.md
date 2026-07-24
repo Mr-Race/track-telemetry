@@ -1,32 +1,40 @@
-# React + TypeScript + Vite
+# Track Telemetry Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite + TypeScript SPA for the Track Telemetry Platform (see
+the repo root `README.md`). Deployed to Azure Static Web Apps
+(`swa-track-telemetry-dashboard`); calls `function_app.py`'s API
+directly (no linked backend, to stay on the SWA free tier).
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Vite proxies `/api/*` to `http://localhost:7071` (see
+`vite.config.ts`), so run the Function app locally alongside this
+(`func start` from the repo root) to get real API responses. Auth
+config (`VITE_MSAL_*`, `VITE_API_SCOPE`) lives in `.env`, committed —
+it's a public SPA client ID + tenant authority, not a secret.
+
+## Build & deploy
+
+```
+npm run build
+npx @azure/static-web-apps-cli deploy ./dist \
+  --deployment-token "$(az staticwebapp secrets list -n swa-track-telemetry-dashboard -g Track-telemetry --query 'properties.apiKey' -o tsv)" \
+  --env production
+```
+
+`.env.production` points `VITE_API_BASE` at the live Function App —
+redeploy the Function app first if the API changed, since there's no
+linked backend to auto-sync.
+
+## Layout
+
+- `src/pages/` - route-level pages (session list/detail, tracks,
+  consumables, events, dashboard home, landing)
+- `src/api/client.ts` - typed fetch wrappers for every API endpoint,
+  MSAL bearer-token attachment
+- `src/authConfig.ts` / `src/msalInstance.ts` - MSAL (Entra ID) setup

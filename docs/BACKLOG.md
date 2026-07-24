@@ -17,9 +17,10 @@
   user-facing stays on free-tier, open tooling.
 
 ## MVP checklist (launch readiness)
-The six pieces that define "launched": a visitor can land on the
-site, sign in, land on a home screen, and use the core dashboard.
-Items link to the backlog block that tracks the actual work.
+**All six done as of 2026-07-24 — MVP is launched.** The six pieces
+that defined "launched": a visitor can land on the site, sign in,
+land on a home screen, and use the core dashboard. Items link to the
+backlog block that tracks the actual work.
 - [x] List of sessions with drill-down detail — done, see `## Done`
       (2026-07-22 session list view + session detail page)
 - [x] Consumable dashboard — done, see `## Done` (2026-07-22
@@ -28,7 +29,7 @@ Items link to the backlog block that tracks the actual work.
       directory + track view pages)
 - [x] Landing page (public, pre-login) — done, see `## Done`
       (2026-07-23 landing page)
-- [ ] Login page — see Block 5's "Dashboard login with Entra ID"
+- [x] Login page — done, see Block 5's "Dashboard login with Entra ID"
 - [x] Landing page after login (dashboard home) — done, see `## Done`
       (2026-07-24 post-login dashboard home)
 
@@ -104,7 +105,7 @@ remain genuinely blocked on earlier blocks.
 ### Block 5 — Auth foundation (Entra ID)
 Required before any write-capable dashboard feature (Block 6) and
 before the custom-domain login page below.
-- [ ] **Dashboard login with Entra ID (modern auth stack)** —
+- [x] **Dashboard login with Entra ID (modern auth stack)** —
       authentication for the React dashboard and write APIs:
       Entra External ID tenant (successor to AD B2C; me as primary
       user, ready for friends as external identities later); OAuth
