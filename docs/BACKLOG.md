@@ -83,7 +83,12 @@ and auth work below.
       and store them (new segment_times table or columns on
       corner_metrics). Prerequisite for the optimal-lap feature in
       Block 4; derivable at ingest from data already parsed (zone
-      entry timestamps), no sample storage needed.
+      entry timestamps), no sample storage needed. IMPLEMENTATION
+      NOTE (validated 2026-07-24 on real CSVs): segment boundaries
+      must be fixed distance/timing gates with interpolated crossing
+      times — NOT the per-lap min-speed timestamp, whose lap-to-lap
+      jitter inflates the optimal-lap gap badly (13.3s vs a credible
+      3.1s on the same Thunderbolt session).
 
 ### Block 3 — Deep telemetry storage
 Independent lift, but a prerequisite for the GPS trace overlay in
@@ -203,9 +208,37 @@ before building this.
       (Entra External ID), per-user data ownership on sessions/laps,
       and sharing permissions.
 
-### Block 9 — Reporting & portfolio wrap-up
-Do last — documents the finished system.
+### Block 9 — Documentation, reporting & portfolio wrap-up
+Documentation starts NOW and stays continuously updated; the
+portfolio writeup is the do-last capstone.
+- [ ] **Living documentation: technical + business (Confluence)** —
+      two documentation sets, kept current as features are created,
+      changed, and released (not written once at the end):
+      - **Technical space** — architecture, schema/data dictionary,
+        API reference, deployment/runbook (incl. migration checklist
+        per issue #1's lesson), decision log (ADR-style: the Power
+        BI drop, distance-gate optimal-lap method, Entra CIAM
+        gotchas already documented in this backlog belong there).
+      - **Business space** — what the platform does and why, feature
+        overview per release, roadmap narrative, cost model ($0
+        story), value/outcomes (e.g. optimal-lap predicting the next
+        day's PB within 0.3s). Written for a non-technical reader;
+        reusable for the portfolio, the writeup, and interviews.
+      - **Update mechanism (the hard requirement):** docs-as-code —
+        author in the repo under docs/technical/ and docs/business/
+        so Claude Code updates them in the same commits as the
+        changes they describe; sync to Confluence Cloud (Free tier,
+        up to 10 users, $0 — licensing exposure acceptable at free
+        tier, revisit if it ever requires Standard) via the
+        Confluence REST API from a GitHub Action on merge to main.
+        Repo is the source of truth; Confluence is the presentation
+        layer. If the sync proves more trouble than it's worth,
+        fallback is GitHub Pages/wiki rendering the same folders —
+        decide during implementation, requirement is currency, not
+        the tool.
 - [ ] Architecture diagram + README writeup (portfolio deliverable)
+      — feeds the technical space above; diagram lives in the repo
+      and renders into both doc sets.
 
 ## Weekend 2 (complete)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
