@@ -43,10 +43,13 @@ v2/portfolio tail.
 ### Block 1 — Data & parser enhancements
 No dependencies on anything else in the backlog; small, self-contained.
 - [ ] Devil's Pass T9 apex validation from first GPS trace on that
-      layout (current pin is provisional)
-- [ ] Corner names (Jersey Devil, Lightbulb, etc.) in corners table
-- [ ] OBD channels in corner metrics (throttle position at apex,
-      RPM at exit) — channels already present in CSV v3 exports
+      layout (current pin is provisional) — still blocked, no session
+      has been driven/ingested on the Devil's Pass configuration yet
+- [x] Corner names in corners table — done, see `## Done`
+      (2026-07-24 corner names)
+- [x] OBD channels in corner metrics (throttle position at apex,
+      RPM at exit) — done, see `## Done` (2026-07-24 OBD corner
+      metrics)
 
 ### Block 2 — Ingestion pipeline expansion
 Builds on the existing /api/ingest path; independent of the dashboard
@@ -349,3 +352,27 @@ Do last — documents the finished system.
       Full authenticated happy path (sign in, see real data) still
       needs a manual browser check — real interactive Entra sign-in
       isn't automatable headlessly here.
+- [x] 2026-07-24 — Corner names (`sql/07_corner_names.sql`) — Lightning
+      T9 = "Lightbulb", T10 = "Kink", per AC. File was authored and
+      committed from the Claude web client in a separate session
+      (`cf20e45`); applied to the live DB in this session (it hadn't
+      been run yet) and verified via `SELECT`. Thunderbolt names still
+      TBD.
+- [x] 2026-07-24 — OBD channels in corner metrics
+      (`sql/10_obd_corner_metrics.sql`) — new `corner_metrics.throttle_pos_apex_pct`
+      / `rpm_exit` columns (additive `ALTER TABLE`, existing rows stay
+      NULL until re-ingested — full backfill is Block 2's job).
+      `ingest/racechrono_parser.py`: `parse_csv` now optionally reads
+      the `rpm`/`throttle_pos` OBD channels (source `"200: obd"`,
+      absent gracefully rather than erroring if the device wasn't
+      OBD-paired for a given export); `compute_corner_metrics` records
+      throttle at the zone's min-speed ("apex") sample and RPM at the
+      zone's last ("exit") sample, matching how `exit_speed_mph`
+      already picks its sample; `load()` inserts both. Verified against
+      both real sample CSVs in `data/`: CLI dry run against the temp
+      corners fixture, then a second dry run using the live DB's real
+      12-corner Lightning event fetched via `fetch_corners` — sensible
+      throttle/RPM progression across a full flying lap (e.g. T10 exit
+      onto the front straight: 76% throttle, 6405 RPM). Devil's Pass T9
+      apex validation stays blocked — no session has been driven on
+      that layout yet, so there's no GPS trace to validate against.

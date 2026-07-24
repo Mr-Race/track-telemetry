@@ -63,6 +63,16 @@ def parse_csv(path):
         "speed": col("speed", "100: gps"),
     }
 
+    # OBD channels are only present when the device is paired to the
+    # car's OBD-II port - absent on some exports, so look these up
+    # optionally rather than failing the whole parse.
+    obd_ci = {}
+    for name in ("rpm", "throttle_pos"):
+        try:
+            obd_ci[name] = col(name, "200: obd")
+        except ValueError:
+            obd_ci[name] = None
+
     samples = []
     for r in rows[hidx + 3:]:
         if not r or len(r) != len(names):
@@ -75,6 +85,13 @@ def parse_csv(path):
         lon = r[ci["lon"]].strip()
         if not (spd and lat and lon):
             continue
+
+        def obd_value(channel):
+            i = obd_ci[channel]
+            if i is None or not r[i].strip():
+                return None
+            return float(r[i])
+
         samples.append({
             "ts": float(r[ci["ts"]]),
             "lap": int(lap),
@@ -82,6 +99,8 @@ def parse_csv(path):
             "lat": float(lat),
             "lon": float(lon),
             "mph": float(spd) * MPS_TO_MPH,
+            "rpm": obd_value("rpm"),
+            "throttle_pos": obd_value("throttle_pos"),
         })
     if not samples:
         raise ValueError("No lap-numbered samples found in file.")
@@ -149,13 +168,21 @@ def compute_corner_metrics(samples, corners):
                       <= c["zone_radius_m"]]
             if not inside:
                 continue
+            apex = min(inside, key=lambda p: p["mph"])
+            exit_sample = inside[-1]
             metrics.append({
                 "lap_number": ln,
                 "corner_code": c["corner_code"],
                 "corner_id": c.get("corner_id"),
-                "min_speed_mph": round(min(p["mph"] for p in inside), 1),
+                "min_speed_mph": round(apex["mph"], 1),
                 "entry_speed_mph": round(inside[0]["mph"], 1),
-                "exit_speed_mph": round(inside[-1]["mph"], 1),
+                "exit_speed_mph": round(exit_sample["mph"], 1),
+                "throttle_pos_apex_pct": (
+                    round(apex["throttle_pos"], 1)
+                    if apex["throttle_pos"] is not None else None),
+                "rpm_exit": (
+                    round(exit_sample["rpm"], 1)
+                    if exit_sample["rpm"] is not None else None),
             })
     return metrics
 
@@ -243,10 +270,12 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
         cur.execute("""
             INSERT INTO dbo.corner_metrics
                 (lap_id, corner_id, min_speed_mph,
-                 entry_speed_mph, exit_speed_mph)
-            VALUES (?,?,?,?,?)""",
+                 entry_speed_mph, exit_speed_mph,
+                 throttle_pos_apex_pct, rpm_exit)
+            VALUES (?,?,?,?,?,?,?)""",
             lap_ids[m["lap_number"]], m["corner_id"], m["min_speed_mph"],
-            m["entry_speed_mph"], m["exit_speed_mph"])
+            m["entry_speed_mph"], m["exit_speed_mph"],
+            m["throttle_pos_apex_pct"], m["rpm_exit"])
 
     cnx.commit()
     return session_id
