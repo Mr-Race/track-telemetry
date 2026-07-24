@@ -78,6 +78,12 @@ and auth work below.
       the Shortcut popup. Retires the 3-prompt Shortcut once trusted.
       (Also still worth checking whether RaceChrono can auto-export
       on session stop.)
+- [ ] **Per-segment (corner-to-corner) times at ingestion** —
+      compute segment times between consecutive corner zones per lap
+      and store them (new segment_times table or columns on
+      corner_metrics). Prerequisite for the optimal-lap feature in
+      Block 4; derivable at ingest from data already parsed (zone
+      entry timestamps), no sample storage needed.
 
 ### Block 3 — Deep telemetry storage
 Independent lift, but a prerequisite for the GPS trace overlay in
@@ -101,6 +107,14 @@ remain genuinely blocked on earlier blocks.
       pace in cool vs hot sessions" views once enough data
       accumulates. Full value once Block 2's weather auto-fetch is
       also in place.
+- [ ] **Dashboard: optimal lap time per session** — in the event
+      view and session drill-down detail, show each session's
+      optimal (theoretical best) lap: the sum of that session's best
+      segment times, alongside actual best lap and the gap between
+      them ("how much time was left on the table"). Depends on Block
+      2's per-segment times item. Backfill note: sessions ingested
+      before segment times exist won't have an optimal lap until
+      re-ingested (pairs naturally with the Block 2 backfill item).
 
 ### Block 5 — Auth foundation (Entra ID)
 Required before any write-capable dashboard feature (Block 6) and
