@@ -1,7 +1,9 @@
-import { Link, Route, Routes } from "react-router-dom";
+import type { ReactElement } from "react";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import {
   AuthenticatedTemplate,
   UnauthenticatedTemplate,
+  useIsAuthenticated,
   useMsal,
 } from "@azure/msal-react";
 import { LandingPage } from "./pages/LandingPage";
@@ -39,6 +41,11 @@ function AuthControl() {
   );
 }
 
+function RequireAuth({ children }: { children: ReactElement }) {
+  const isAuthenticated = useIsAuthenticated();
+  return isAuthenticated ? children : <Navigate to="/" replace />;
+}
+
 function App() {
   return (
     <div className="app-shell">
@@ -69,11 +76,46 @@ function App() {
               </>
             }
           />
-          <Route path="/sessions" element={<SessionListPage />} />
-          <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
-          <Route path="/tracks" element={<TrackDirectoryPage />} />
-          <Route path="/tracks/:trackId" element={<TrackViewPage />} />
-          <Route path="/consumables" element={<ConsumablesPage />} />
+          <Route
+            path="/sessions"
+            element={
+              <RequireAuth>
+                <SessionListPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/sessions/:sessionId"
+            element={
+              <RequireAuth>
+                <SessionDetailPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/tracks"
+            element={
+              <RequireAuth>
+                <TrackDirectoryPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/tracks/:trackId"
+            element={
+              <RequireAuth>
+                <TrackViewPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/consumables"
+            element={
+              <RequireAuth>
+                <ConsumablesPage />
+              </RequireAuth>
+            }
+          />
         </Routes>
       </main>
     </div>

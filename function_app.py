@@ -16,6 +16,7 @@ import uuid
 import azure.functions as func
 
 from ingest import maps, queries
+from ingest.api_auth import require_auth
 from ingest.cloud import get_cloud_connection, upload_raw_blob
 from ingest.racechrono_parser import (
     compute_corner_metrics, compute_laps, fetch_corners, fmt_ms, load,
@@ -38,11 +39,12 @@ def _json_response(payload, status_code):
         mimetype="application/json")
 
 
-# Read endpoints for the React dashboard (Block 4). Left anonymous for now,
-# same as the MCP server's read path; write endpoints added in a later
-# block will require the Entra ID auth from Block 5.
+# Read endpoints for the React dashboard (Block 4). auth_level stays
+# ANONYMOUS (that's Azure's function-key mechanism, unrelated) -
+# @require_auth validates a real MSAL-issued bearer token instead.
 @app.route(route="sessions", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
 def list_sessions(req: func.HttpRequest) -> func.HttpResponse:
     event_id = req.params.get("event_id")
     try:
@@ -60,6 +62,7 @@ def list_sessions(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="sessions/{session_id:int}", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
 def get_session_detail(req: func.HttpRequest) -> func.HttpResponse:
     session_id = int(req.route_params["session_id"])
     try:
@@ -74,6 +77,7 @@ def get_session_detail(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="sessions/{session_id:int}/summary", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
 def get_session_summary(req: func.HttpRequest) -> func.HttpResponse:
     session_id = int(req.route_params["session_id"])
     try:
@@ -88,6 +92,7 @@ def get_session_summary(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="tracks", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
 def list_tracks(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.list_tracks(_connect()), 200)
@@ -98,6 +103,7 @@ def list_tracks(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="tracks/{track_id:int}/satellite", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
 def get_track_satellite(req: func.HttpRequest) -> func.HttpResponse:
     track_id = int(req.route_params["track_id"])
     try:
@@ -115,6 +121,7 @@ def get_track_satellite(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="tracks/{track_id:int}/benchmarks", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
 def get_track_benchmarks(req: func.HttpRequest) -> func.HttpResponse:
     track_id = int(req.route_params["track_id"])
     try:
@@ -129,6 +136,7 @@ def get_track_benchmarks(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="consumables", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
 def get_consumables(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.get_consumables(_connect()), 200)

@@ -1,3 +1,7 @@
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { apiRequest } from "../authConfig";
+import { msalInstance } from "../msalInstance";
+
 export interface SessionListItem {
   session_id: number;
   event_id: number;
@@ -105,8 +109,31 @@ interface ApiError {
 // Web App is Free tier (no same-origin linked backend).
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
+// Every read route requires a bearer token (see ingest/api_auth.py). A
+// signed-out caller just gets null here and the API 401s - client.ts
+// doesn't need its own "not signed in" error path.
+async function getAccessToken(): Promise<string | null> {
+  const account = msalInstance.getActiveAccount();
+  if (!account) return null;
+
+  try {
+    const result = await msalInstance.acquireTokenSilent({ ...apiRequest, account });
+    return result.accessToken;
+  } catch (err) {
+    if (err instanceof InteractionRequiredAuthError) {
+      await msalInstance.acquireTokenRedirect(apiRequest);
+    }
+    return null;
+  }
+}
+
+async function authHeaders(): Promise<HeadersInit> {
+  const token = await getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, { headers: await authHeaders() });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as ApiError | null;
     throw new Error(body?.error ?? `Request to ${path} failed (${res.status})`);
@@ -138,6 +165,16 @@ export function getConsumables(): Promise<Consumable[]> {
   return getJson("/consumables");
 }
 
-export function trackSatelliteUrl(trackId: number): string {
-  return `${API_BASE}/tracks/${trackId}/satellite`;
+// <img src> can't send an Authorization header, so the satellite image
+// is fetched with the bearer token and exposed as an object URL instead
+// of a plain route URL.
+export async function fetchTrackSatelliteBlob(trackId: number): Promise<string> {
+  const res = await fetch(`${API_BASE}/tracks/${trackId}/satellite`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as ApiError | null;
+    throw new Error(body?.error ?? `Request to /tracks/${trackId}/satellite failed (${res.status})`);
+  }
+  return URL.createObjectURL(await res.blob());
 }

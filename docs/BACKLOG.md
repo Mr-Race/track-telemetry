@@ -142,8 +142,9 @@ before the custom-domain login page below.
             than the friendly domain, so `authConfig.ts`'s
             `knownAuthorities` lists both; and Azure AD's redirect URI
             match is byte-exact (trailing slash included).
-      - [ ] Function app bearer-token validation (once Block 6 has a
-            write endpoint to protect)
+      - [x] 2026-07-24 — Function app bearer-token validation — see
+            `## Done` (pulled forward to protect the read routes now
+            rather than waiting for Block 6's first write endpoint)
 - [x] **Post-login landing page (dashboard home)** — done, see
       `## Done` (2026-07-24 dashboard home quick links)
 - [ ] OAuth 2.1 + PKCE via Entra ID on the MCP server
@@ -314,3 +315,37 @@ Do last — documents the finished system.
       ID sign-in isn't automatable headlessly in this environment —
       full authenticated data flow still needs a manual browser check
       per [[block5_auth_progress]].
+- [x] 2026-07-24 — Block 5 step 5: lock dashboard data behind auth —
+      discovered `/sessions`, `/tracks`, `/tracks/{id}`, and
+      `/consumables` served full personal telemetry with no sign-in
+      required (client routes weren't gated, and the read API was
+      anonymous by original design). Fixed both ends: exposed an
+      `access_as_user` delegated scope on the SPA app registration
+      (`identifierUris`/`api.oauth2PermissionScopes` via Graph API
+      PATCH — confirmed via `az rest`, since `az ad app` commands need
+      an explicit tenant-scoped token for a directory with no ARM
+      subscription); MSAL now requests that scope alongside
+      `openid`/`profile` at sign-in (`dashboard/src/authConfig.ts`)
+      and attaches it as a Bearer header on every dashboard API call
+      (`dashboard/src/api/client.ts`, via a new
+      `dashboard/src/msalInstance.ts` singleton so the plain fetch
+      functions can reach MSAL outside the React tree); the satellite
+      image endpoint moved from a plain `<img src>` to a fetch+
+      object-URL pattern since `<img>` can't send headers
+      (`TrackPanel.tsx`). Server side: new `ingest/api_auth.py`
+      validates the JWT with `PyJWT`'s `PyJWKClient` (signature via
+      JWKS, audience = the app's client ID, issuer = the CIAM
+      tenant's discovery doc) before any handler touches the DB;
+      applied to all read routes in `function_app.py` via a
+      `@require_auth` decorator, `POST /api/ingest` untouched (already
+      function-key gated). Client-side, `App.tsx` gained a
+      `RequireAuth` wrapper redirecting signed-out visitors to `/`.
+      Pulled forward from Block 6 rather than waiting for a write
+      endpoint, per explicit ask after the gap was found live in prod.
+      Verified: local `func start` returns 401 with no/bad token
+      without touching the DB; a live headless screenshot of prod
+      confirms unauthenticated `/sessions` now falls back to the
+      public landing page; prod API 401s with no token post-deploy.
+      Full authenticated happy path (sign in, see real data) still
+      needs a manual browser check — real interactive Entra sign-in
+      isn't automatable headlessly here.

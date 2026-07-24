@@ -1,19 +1,48 @@
-import { useCallback } from "react";
-import { getTrackBenchmarks, trackSatelliteUrl } from "../api/client";
+import { useCallback, useEffect, useState } from "react";
+import { fetchTrackSatelliteBlob, getTrackBenchmarks } from "../api/client";
 import { useFetch } from "../api/useFetch";
+
+function useSatelliteImageUrl(trackId: number): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    setUrl(null);
+    fetchTrackSatelliteBlob(trackId)
+      .then((blobUrl) => {
+        if (cancelled) {
+          URL.revokeObjectURL(blobUrl);
+          return;
+        }
+        objectUrl = blobUrl;
+        setUrl(blobUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [trackId]);
+
+  return url;
+}
 
 export function TrackPanel({ trackId }: { trackId: number }) {
   const load = useCallback(() => getTrackBenchmarks(trackId), [trackId]);
   const state = useFetch(load, [trackId]);
+  const satelliteUrl = useSatelliteImageUrl(trackId);
 
   return (
     <div className="track-panel">
-      <img
-        className="satellite-image"
-        src={trackSatelliteUrl(trackId)}
-        alt="Satellite view of the track"
-        loading="lazy"
-      />
+      {satelliteUrl && (
+        <img
+          className="satellite-image"
+          src={satelliteUrl}
+          alt="Satellite view of the track"
+          loading="lazy"
+        />
+      )}
 
       {state.status === "loading" && <p className="muted">Loading leaderboard…</p>}
       {state.status === "error" && <p className="delta-bad">Error: {state.message}</p>}
