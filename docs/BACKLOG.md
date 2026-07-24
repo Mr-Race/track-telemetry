@@ -16,56 +16,87 @@
   down the line — no per-seat or Pro-license exposure; everything
   user-facing stays on free-tier, open tooling.
 
-## MVP checklist (launch readiness)
-**All six done as of 2026-07-24 — MVP is launched.** The six pieces
-that defined "launched": a visitor can land on the site, sign in,
-land on a home screen, and use the core dashboard. Items link to the
-backlog block that tracks the actual work.
-- [x] List of sessions with drill-down detail — done, see `## Done`
-      (2026-07-22 session list view + session detail page)
-- [x] Consumable dashboard — done, see `## Done` (2026-07-22
-      consumables life tracker)
-- [x] Track directory — done, see `## Done` (2026-07-23 track
-      directory + track view pages)
-- [x] Landing page (public, pre-login) — done, see `## Done`
-      (2026-07-23 landing page)
-- [x] Login page — done, see Block 5's "Dashboard login with Entra ID"
-- [x] Landing page after login (dashboard home) — done, see `## Done`
-      (2026-07-24 post-login dashboard home)
+## Versioning (decided 2026-07-24)
+Semver-style product versioning:
+- **0.x (current, ~0.9):** pre-stable — schemas change freely,
+  features land daily, nothing is promised. The MVP launch was a
+  milestone inside 0.x, not 1.0.
+- **1.0:** declared when the v1.0 scope below is complete — core
+  loop finished (drive -> auto-ingest -> enriched analysis ->
+  review), no known broken pieces in prod, all endpoints secured,
+  docs baseline exists. From 1.0 on, breaking changes cost.
+- **1.x:** additive, backward-compatible features (1.1, 1.2...);
+  fixes are 1.0.1-style patches.
+- **2.0:** reserved for breaking/identity-level change — for this
+  product, the replay + multi-user platform.
 
-## Backlog (open)
-Grouped into blocks; each block is buildable independently of the
-others. Order below is the recommended build sequence — quick
-independent wins first, then the sample-storage foundation the GPS
-trace overlay needs, then the dashboard core, then auth (required
-before any write-capable dashboard feature), then hardening and the
-v2/portfolio tail.
+Release mechanics to adopt at 1.0 (part of the v1.0 scope):
+git tag + GitHub Release per version, CHANGELOG.md updated with
+every release, version number shown in the dashboard footer.
 
-### Block 1 — Data & parser enhancements
-No dependencies on anything else in the backlog; small, self-contained.
-- [ ] Devil's Pass T9 apex validation from first GPS trace on that
-      layout (current pin is provisional) — still blocked, no session
-      has been driven/ingested on the Devil's Pass configuration yet
-- [x] Corner names in corners table — done, see `## Done`
-      (2026-07-24 corner names)
-- [x] OBD channels in corner metrics (throttle position at apex,
-      RPM at exit) — done, see `## Done` (2026-07-24 OBD corner
-      metrics)
-
-### Block 2 — Ingestion pipeline expansion
-Builds on the existing /api/ingest path; independent of the dashboard
-and auth work below.
+## v1.0 — finish to launch
+The cut line: completes the analysis story (every session ever
+driven, ingested and enriched, with optimal laps, fully secured)
+plus the docs baseline. Nothing else blocks 1.0.
+- [ ] **Fix issue #1: MCP server redeploy** — prod MCP is down
+      (stale image queries the dropped sessions.run_group column).
+      Rebuild/redeploy `ca-track-telemetry-mcp` from main, verify all
+      four tools live. Automatic 1.0 blocker: "no known broken
+      pieces in prod."
 - [ ] **Auto-fetch session weather at ingestion** — when a session is
       loaded, call Open-Meteo archive API (free, keyless) with track
       lat/lon + session start_time; populate sessions.weather and
       air_temp_f automatically. Consider adding columns: humidity_pct,
-      wind_mph, precip_in, track-relevant conditions summary. The
-      dashboard weather widget (Block 4) needs humidity + observation
-      time captured, not just temp/summary.
+      wind_mph, precip_in, track-relevant conditions summary. Capture
+      humidity + observation time, not just temp/summary (the v1.x
+      dashboard weather section consumes them).
+- [ ] **Per-segment (corner-to-corner) times at ingestion** —
+      compute segment times between consecutive corner zones per lap
+      and store them (new segment_times table or columns on
+      corner_metrics). Prerequisite for the optimal-lap feature
+      below; derivable at ingest from data already parsed (zone
+      entry timestamps), no sample storage needed. IMPLEMENTATION
+      NOTE (validated 2026-07-24 on real CSVs): segment boundaries
+      must be fixed distance/timing gates with interpolated crossing
+      times — NOT the per-lap min-speed timestamp, whose lap-to-lap
+      jitter inflates the optimal-lap gap badly (13.3s vs a credible
+      3.1s on the same Thunderbolt session).
+- [ ] **Dashboard: optimal lap time per session** — in the event
+      view and session drill-down detail, show each session's
+      optimal (theoretical best) lap: the sum of that session's best
+      segment times, alongside actual best lap and the gap between
+      them ("how much time was left on the table"). Depends on the
+      per-segment times item above.
 - [ ] **Backfill historical sessions** — upload all pre-existing
       RaceChrono CSVs (before the ingest Function/Shortcut existed)
       through the same /api/ingest path so past track days show up
-      alongside new ones.
+      alongside new ones. Run AFTER weather + segment times land, so
+      one re-ingest pass populates everything (weather, segments,
+      OBD corner metrics) for the whole history.
+- [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
+      the last unauthenticated endpoint.
+- [ ] **Docs baseline (living documentation v1)** — technical +
+      business doc sets as docs-as-code in the repo
+      (docs/technical/, docs/business/), updated in the same commits
+      as the changes they describe, rendered via GitHub Pages
+      (MkDocs Material or similar; $0, no sync job):
+      - Technical: architecture + diagram, schema/data dictionary,
+        API reference, deployment/runbook (incl. migration checklist
+        per issue #1's lesson), ADR-style decision log (Power BI
+        drop, distance-gate optimal-lap method, Entra CIAM gotchas).
+      - Business: what the platform does and why, feature overview
+        per release, roadmap narrative, cost model ($0 story),
+        value/outcomes (e.g. optimal-lap predicting the next day's
+        PB within 0.3s). Non-technical reader; reusable for
+        portfolio and interviews.
+      - Confluence Cloud (Free tier) mirror is OPTIONAL, deferred to
+        v1.x if ever wanted for audience reasons — requirement is
+        currency, not the tool; Pages is the system of record's
+        renderer.
+- [ ] **Release mechanics** — first git tag `v1.0.0` + GitHub
+      Release, CHANGELOG.md created, version in dashboard footer.
+
+## v1.x — post-launch backlog (additive)
 - [ ] **One-step ingestion (automate the file load)** — remove the
       manual Shortcut prompts. Proposed design: export CSV from
       RaceChrono to a watched OneDrive folder; Logic App (OneDrive
@@ -78,167 +109,56 @@ and auth work below.
       the Shortcut popup. Retires the 3-prompt Shortcut once trusted.
       (Also still worth checking whether RaceChrono can auto-export
       on session stop.)
-- [ ] **Per-segment (corner-to-corner) times at ingestion** —
-      compute segment times between consecutive corner zones per lap
-      and store them (new segment_times table or columns on
-      corner_metrics). Prerequisite for the optimal-lap feature in
-      Block 4; derivable at ingest from data already parsed (zone
-      entry timestamps), no sample storage needed. IMPLEMENTATION
-      NOTE (validated 2026-07-24 on real CSVs): segment boundaries
-      must be fixed distance/timing gates with interpolated crossing
-      times — NOT the per-lap min-speed timestamp, whose lap-to-lap
-      jitter inflates the optimal-lap gap badly (13.3s vs a credible
-      3.1s on the same Thunderbolt session).
-
-### Block 3 — Deep telemetry storage
-Independent lift, but a prerequisite for the GPS trace overlay in
-Block 4.
-- [ ] telemetry_samples table or Parquet-in-Blob for sample-level
-      analysis (full speed traces, throttle/RPM overlays) — either
-      parse raw CSV from Blob on demand, or have the ingestion
-      Function persist a downsampled (~5Hz) lat/lon trace per lap.
-
-### Block 4 — React dashboard core
-The dashboard itself is the foundation; everything else in this
-block renders into it, so build it first. Session list, session
-summary, satellite view, benchmarks, consumables, and the track
-directory are done (see `## Done`). GPS overlay and weather section
-remain genuinely blocked on earlier blocks.
-- [ ] **Dashboard: GPS trace overlay** — draw the car's driven line
-      over the satellite view, RaceChrono-style, for a selected
-      lap/session. Depends on Block 3's sample-level GPS storage.
 - [ ] **Dashboard weather section** — per-session conditions panel
-      (temp, humidity, day/date, session time); enable "compare my
-      pace in cool vs hot sessions" views once enough data
-      accumulates. Full value once Block 2's weather auto-fetch is
-      also in place.
-- [ ] **Dashboard: optimal lap time per session** — in the event
-      view and session drill-down detail, show each session's
-      optimal (theoretical best) lap: the sum of that session's best
-      segment times, alongside actual best lap and the gap between
-      them ("how much time was left on the table"). Depends on Block
-      2's per-segment times item. Backfill note: sessions ingested
-      before segment times exist won't have an optimal lap until
-      re-ingested (pairs naturally with the Block 2 backfill item).
-
-### Block 5 — Auth foundation (Entra ID)
-Required before any write-capable dashboard feature (Block 6) and
-before the custom-domain login page below.
-- [x] **Dashboard login with Entra ID (modern auth stack)** —
-      authentication for the React dashboard and write APIs:
-      Entra External ID tenant (successor to AD B2C; me as primary
-      user, ready for friends as external identities later); OAuth
-      2.1 authorization code flow + PKCE via MSAL React (no implicit
-      flow, no secrets in the SPA); passkeys (FIDO2/WebAuthn) as the
-      primary passwordless sign-in; Function app validates bearer
-      tokens — write endpoints require auth, read endpoints may stay
-      open initially. Foundation for track management writes,
-      friends' benchmarks, multi-user v2.
-      - [x] 2026-07-23 — Schema prep: dbo.drivers table + FK'd,
-            NOT NULL, backfilled driver_id on dbo.sessions
-            (sql/09_drivers.sql). Built the real table now rather than
-            a bare nullable column, since the table only had 7 rows —
-            Block 8 (multi-user v2) won't need to touch historical
-            data later. DEFAULT constraint (driver_id=1, the sole
-            'Me' row) means ingest.py's existing INSERT needs no code
-            changes yet. Verified: drivers has 1 row, all 7 sessions
-            backfilled to driver_id=1, FK_sessions_drivers exists,
-            list_sessions/get_session_detail still return correctly
-            against the live DB.
-      - [x] 2026-07-23 — Entra External ID (CIAM) tenant provisioned
-            (tenant `cc8e128a-ad5b-49af-a3ce-35e7c3c3e30c`,
-            `tracktelemetry.onmicrosoft.com`), SPA app "Track Telemetry
-            Dashboard" registered (client `99a220cf-5739-4be8-8d68-55ebaa905ad3`,
-            public client, no secret), user flow `SignUpSignIn` created
-            and attached. Note: the CIAM user-flow wizard only offers
-            email + password as a primary identity provider today, not
-            passkeys/passwordless as originally scoped above — revisit
-            via Entra's Authentication Methods policy later if wanted.
-      - [x] 2026-07-23 — MSAL React integration in the dashboard —
-            `@azure/msal-browser` + `@azure/msal-react` added,
-            `MsalProvider` wraps the app (`dashboard/src/main.tsx`),
-            sign-in/out control in the header (`dashboard/src/App.tsx`).
-            Interactive sign-in confirmed working end-to-end (auth-code
-            + PKCE via `loginRedirect`). Two config gotchas worth
-            knowing if this needs touching again: this CIAM tenant's
-            OIDC issuer resolves to the tenant-GUID subdomain rather
-            than the friendly domain, so `authConfig.ts`'s
-            `knownAuthorities` lists both; and Azure AD's redirect URI
-            match is byte-exact (trailing slash included).
-      - [x] 2026-07-24 — Function app bearer-token validation — see
-            `## Done` (pulled forward to protect the read routes now
-            rather than waiting for Block 6's first write endpoint)
-- [x] **Post-login landing page (dashboard home)** — done, see
-      `## Done` (2026-07-24 dashboard home quick links)
-- [ ] OAuth 2.1 + PKCE via Entra ID on the MCP server
-- [ ] **Login page on a custom domain (www.mr-race.com)** — front the
-      MCP connector/dashboard with a proper login page on the owned
-      domain instead of the raw Container Apps URL; depends on the
-      two auth items above.
-
-### Block 6 — Write-capable dashboard features
-Depend on Block 5's auth foundation (write endpoints require it).
-- [x] **Dashboard: event management** — done, see `## Done`
-      (2026-07-24 event creation, first write-capable feature)
+      (temp, humidity, day/date, session time); "compare my pace in
+      cool vs hot sessions" views once enough data accumulates.
+      Consumes v1.0's weather auto-fetch fields.
 - [ ] **Dashboard: track management interface** — view and add
       tracks/configurations with track info (length, corner count,
       location) and my personal best per configuration (computed
-      from laps table). First write-capable dashboard feature —
-      requires write API endpoints on the Function app + auth on
-      those routes (read endpoints can stay open/simple).
+      from laps table). Requires write API endpoints (auth
+      foundation already in place).
 - [ ] **Dashboard: corner apex editor** — within track management,
       click/tap on the satellite view to place or adjust corner apex
       coordinates and zone radii, writing to the corners table.
       Replaces the manual Google Maps coordinate workflow for new
       tracks.
-
-### Block 7 — Hardening
-Independent of dashboard content; production-readiness items that
-can run anytime.
+- [ ] **Event summary page** — real dashboard behind the
+      /events/:eventId placeholder route (reqs TBD).
+- [ ] **Login page on a custom domain (www.mr-race.com)** — front the
+      dashboard/MCP with the owned domain instead of raw Azure URLs.
 - [ ] API Management in front of the ingest endpoint (hardening story)
 - [ ] Lock storage account networking to selected networks
       (documented hardening step)
+- [ ] Thunderbolt corner names (Lightning done: T9 Lightbulb,
+      T10 Kink; Jersey Devil placement TBD per AC's coding)
+- [ ] Devil's Pass T9 apex validation from first GPS trace on that
+      layout (current pin is provisional) — blocked until a session
+      is driven on that configuration
+- [ ] Optional Confluence Cloud mirror of the docs (see v1.0 docs
+      baseline — only if an audience warrants it)
 
-### Block 8 — Multi-user platform (v2 ambition)
-Depends on Block 5's driver_id schema prep — design that decision
-before building this.
-- [ ] **Multi-user platform (v2 ambition)** — friends create
-      accounts, upload their own RaceChrono sessions, share best
-      laps and corner speeds. MAJOR scope: adds identity/auth
-      (Entra External ID), per-user data ownership on sessions/laps,
-      and sharing permissions.
-
-### Block 9 — Documentation, reporting & portfolio wrap-up
-Documentation starts NOW and stays continuously updated; the
-portfolio writeup is the do-last capstone.
-- [ ] **Living documentation: technical + business (Confluence)** —
-      two documentation sets, kept current as features are created,
-      changed, and released (not written once at the end):
-      - **Technical space** — architecture, schema/data dictionary,
-        API reference, deployment/runbook (incl. migration checklist
-        per issue #1's lesson), decision log (ADR-style: the Power
-        BI drop, distance-gate optimal-lap method, Entra CIAM
-        gotchas already documented in this backlog belong there).
-      - **Business space** — what the platform does and why, feature
-        overview per release, roadmap narrative, cost model ($0
-        story), value/outcomes (e.g. optimal-lap predicting the next
-        day's PB within 0.3s). Written for a non-technical reader;
-        reusable for the portfolio, the writeup, and interviews.
-      - **Update mechanism (the hard requirement):** docs-as-code —
-        author in the repo under docs/technical/ and docs/business/
-        so Claude Code updates them in the same commits as the
-        changes they describe; sync to Confluence Cloud (Free tier,
-        up to 10 users, $0 — licensing exposure acceptable at free
-        tier, revisit if it ever requires Standard) via the
-        Confluence REST API from a GitHub Action on merge to main.
-        Repo is the source of truth; Confluence is the presentation
-        layer. If the sync proves more trouble than it's worth,
-        fallback is GitHub Pages/wiki rendering the same folders —
-        decide during implementation, requirement is currency, not
-        the tool.
-- [ ] Architecture diagram + README writeup (portfolio deliverable)
-      — feeds the technical space above; diagram lives in the repo
-      and renders into both doc sets.
+## v2.0 — replay + multi-user platform
+Theme: the platform learns to replay and share driving. Breaking /
+identity-level scope; design as one coherent release.
+- [ ] **Deep telemetry storage** — telemetry_samples table or
+      Parquet-in-Blob for sample-level analysis (full speed traces,
+      throttle/RPM overlays): parse raw CSV from Blob on demand, or
+      ingestion Function persists a downsampled (~5Hz) lat/lon trace
+      per lap. Prerequisite for replay.
+- [ ] **Lap replay animation (RaceChrono-style)** — not a static
+      line: an arrow/marker traveling the driven line over the
+      satellite image in lap time, with playback controls and
+      timeline scrubbing; speed/throttle/RPM readouts following the
+      marker. Design target: ghost-lap mode — two laps replayed
+      simultaneously for comparison (own laps, and friends' laps
+      once multi-user lands). Depends on deep telemetry storage.
+- [ ] **Multi-user platform** — friends create accounts, upload
+      their own RaceChrono sessions, share best laps and corner
+      speeds; ghost comparisons against friends' laps. MAJOR scope:
+      per-user data ownership on sessions/laps and sharing
+      permissions on top of the existing Entra External ID + 
+      driver_id foundation (schema prep done 2026-07-23).
 
 ## Weekend 2 (complete)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
@@ -411,21 +331,22 @@ portfolio writeup is the do-last capstone.
 - [x] 2026-07-24 — OBD channels in corner metrics
       (`sql/10_obd_corner_metrics.sql`) — new `corner_metrics.throttle_pos_apex_pct`
       / `rpm_exit` columns (additive `ALTER TABLE`, existing rows stay
-      NULL until re-ingested — full backfill is Block 2's job).
-      `ingest/racechrono_parser.py`: `parse_csv` now optionally reads
-      the `rpm`/`throttle_pos` OBD channels (source `"200: obd"`,
-      absent gracefully rather than erroring if the device wasn't
-      OBD-paired for a given export); `compute_corner_metrics` records
-      throttle at the zone's min-speed ("apex") sample and RPM at the
-      zone's last ("exit") sample, matching how `exit_speed_mph`
-      already picks its sample; `load()` inserts both. Verified against
-      both real sample CSVs in `data/`: CLI dry run against the temp
-      corners fixture, then a second dry run using the live DB's real
-      12-corner Lightning event fetched via `fetch_corners` — sensible
-      throttle/RPM progression across a full flying lap (e.g. T10 exit
-      onto the front straight: 76% throttle, 6405 RPM). Devil's Pass T9
-      apex validation stays blocked — no session has been driven on
-      that layout yet, so there's no GPS trace to validate against.
+      NULL until re-ingested — full backfill is the v1.0 backfill
+      item's job). `ingest/racechrono_parser.py`: `parse_csv` now
+      optionally reads the `rpm`/`throttle_pos` OBD channels (source
+      `"200: obd"`, absent gracefully rather than erroring if the
+      device wasn't OBD-paired for a given export);
+      `compute_corner_metrics` records throttle at the zone's
+      min-speed ("apex") sample and RPM at the zone's last ("exit")
+      sample, matching how `exit_speed_mph` already picks its sample;
+      `load()` inserts both. Verified against both real sample CSVs
+      in `data/`: CLI dry run against the temp corners fixture, then
+      a second dry run using the live DB's real 12-corner Lightning
+      event fetched via `fetch_corners` — sensible throttle/RPM
+      progression across a full flying lap (e.g. T10 exit onto the
+      front straight: 76% throttle, 6405 RPM). Devil's Pass T9 apex
+      validation stays blocked — no session has been driven on that
+      layout yet, so there's no GPS trace to validate against.
 - [x] 2026-07-24 — Run group reference tables
       (`sql/11_run_groups.sql`) — new `dbo.organizations`
       (SCCA-HPDE, NASA-NE-HPDE) and `dbo.run_groups` (FK'd, with a
