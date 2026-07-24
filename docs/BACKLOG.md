@@ -395,3 +395,25 @@ Do last — documents the finished system.
       events backfilled correctly before the `NOT NULL` tightening,
       and `list_sessions`/`get_session_detail` return cleanly against
       the live DB post-migration.
+- [x] 2026-07-24 — Fixed event/organization data model: assigning run
+      groups to the existing sessions surfaced that `event_id=1`
+      ("Lightning May 2026") was wrongly acting as a catch-all for
+      every Lightning session ever ingested regardless of actual
+      calendar occurrence — the May 16-17 NASA weekend and a July 22
+      SCCA day both got lumped into it, so July 22 inherited the wrong
+      `organization_id`. The schema itself needed no changes:
+      `events.organization_id` + free-text `event_name` already
+      support one row per real occurrence, org-attributed, with
+      whatever name that org actually used (NASA's "Ice Breaker",
+      SCCA's "TNIA" for Track Night In America) — nothing stops
+      multiple event rows sharing a name across different dates. Split
+      the mis-attributed data: new event row ("TNIA", SCCA-HPDE,
+      2026-07-22), moved sessions 6/9/10 onto it, tagged all three
+      Novice. Also found and fixed a duplicate while at it: session #4
+      and #5 on that day were byte-for-byte the same session (same
+      start time, 9 laps, 1:26.816 best, 90 corner metrics) — an iOS
+      Shortcut double-submit. Dropped the duplicate (cascading its
+      laps/corner_metrics) and renumbered the remaining two sessions
+      to close the gap. Verified `list_sessions` end-to-end
+      post-cleanup: 6 real sessions, correct event/org/run_group per
+      row.
