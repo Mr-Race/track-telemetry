@@ -100,6 +100,32 @@ export interface Consumable {
   overdue: boolean;
 }
 
+export interface Organization {
+  organization_id: number;
+  org_code: string;
+  org_name: string;
+}
+
+export interface EventListItem {
+  event_id: number;
+  event_name: string;
+  track_id: number;
+  track_name: string;
+  organization_id: number;
+  org_code: string;
+  start_date: string;
+  end_date: string | null;
+  session_count: number;
+}
+
+export interface NewEvent {
+  track_id: number;
+  organization_id: number;
+  event_name: string;
+  start_date: string;
+  end_date: string | null;
+}
+
 interface ApiError {
   error: string;
 }
@@ -141,6 +167,19 @@ async function getJson<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function postJson<T>(path: string, payload: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as ApiError | null;
+    throw new Error(body?.error ?? `Request to ${path} failed (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export function listSessions(): Promise<SessionListItem[]> {
   return getJson("/sessions");
 }
@@ -163,6 +202,18 @@ export function listTracks(): Promise<Track[]> {
 
 export function getConsumables(): Promise<Consumable[]> {
   return getJson("/consumables");
+}
+
+export function listOrganizations(): Promise<Organization[]> {
+  return getJson("/organizations");
+}
+
+export function listEvents(): Promise<EventListItem[]> {
+  return getJson("/events");
+}
+
+export function createEvent(event: NewEvent): Promise<{ event_id: number }> {
+  return postJson("/events", event);
 }
 
 // <img src> can't send an Authorization header, so the satellite image

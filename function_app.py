@@ -145,6 +145,64 @@ def get_consumables(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"error": str(exc)}, 500)
 
 
+@app.route(route="organizations", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def list_organizations(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        return _json_response(queries.list_organizations(_connect()), 200)
+    except Exception as exc:
+        logging.exception("list_organizations failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+@app.route(route="events", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def list_events(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        return _json_response(queries.list_events(_connect()), 200)
+    except Exception as exc:
+        logging.exception("list_events failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+# First write-capable dashboard endpoint (Block 6) - protected the same
+# way as the read routes, @require_auth validating a real bearer token.
+@app.route(route="events", methods=["POST"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def create_event(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        body = req.get_json()
+    except ValueError:
+        return _json_response({"error": "request body must be JSON"}, 400)
+
+    try:
+        track_id = int(body["track_id"])
+        organization_id = int(body["organization_id"])
+        event_name = str(body["event_name"]).strip()
+        start_date = str(body["start_date"])
+        end_date = body.get("end_date") or None
+        end_date = str(end_date) if end_date else None
+    except (KeyError, TypeError, ValueError):
+        return _json_response(
+            {"error": "track_id, organization_id, event_name, and "
+                      "start_date are required"}, 400)
+
+    if not event_name:
+        return _json_response({"error": "event_name cannot be empty"}, 400)
+
+    try:
+        event_id = queries.create_event(
+            _connect(), track_id, organization_id, event_name,
+            start_date, end_date)
+        return _json_response({"event_id": event_id}, 201)
+    except Exception as exc:
+        logging.exception("create_event failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
 @app.route(route="ingest", methods=["POST"],
            auth_level=func.AuthLevel.FUNCTION)
 def ingest(req: func.HttpRequest) -> func.HttpResponse:

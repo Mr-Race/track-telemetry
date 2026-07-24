@@ -13,6 +13,7 @@ import { SessionDetailPage } from "./pages/SessionDetailPage";
 import { ConsumablesPage } from "./pages/ConsumablesPage";
 import { TrackDirectoryPage } from "./pages/TrackDirectoryPage";
 import { TrackViewPage } from "./pages/TrackViewPage";
+import { EventsPage } from "./pages/EventsPage";
 import { loginRequest } from "./authConfig";
 
 function AuthControl() {
@@ -56,6 +57,7 @@ function App() {
           <Link to="/sessions">Sessions</Link>
           <Link to="/tracks">Tracks</Link>
           <Link to="/consumables">Consumables</Link>
+          <Link to="/events">Events</Link>
         </nav>
         <div className="auth-control">
           <AuthControl />
@@ -113,6 +115,14 @@ function App() {
             element={
               <RequireAuth>
                 <ConsumablesPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/events"
+            element={
+              <RequireAuth>
+                <EventsPage />
               </RequireAuth>
             }
           />

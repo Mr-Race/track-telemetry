@@ -158,6 +158,8 @@ before the custom-domain login page below.
 
 ### Block 6 — Write-capable dashboard features
 Depend on Block 5's auth foundation (write endpoints require it).
+- [x] **Dashboard: event management** — done, see `## Done`
+      (2026-07-24 event creation, first write-capable feature)
 - [ ] **Dashboard: track management interface** — view and add
       tracks/configurations with track info (length, corner count,
       location) and my personal best per configuration (computed
@@ -417,3 +419,17 @@ Do last — documents the finished system.
       to close the gap. Verified `list_sessions` end-to-end
       post-cleanup: 6 real sessions, correct event/org/run_group per
       row.
+- [x] 2026-07-24 — Dashboard: event management, Block 6's first
+      write-capable feature. New endpoints on `function_app.py`/
+      `ingest/queries.py`: `GET /api/organizations`, `GET /api/events`
+      (event + org/track + session count per row), and
+      `POST /api/events` (create) — all behind the existing
+      `@require_auth` decorator, no new auth plumbing needed. New
+      `dashboard/src/pages/EventsPage.tsx`: a create-event form
+      (org/track selects, name, start/end date) plus a table of all
+      events, wired up at `/events` behind `RequireAuth`. Verified
+      locally end-to-end: `func start` + `npm run dev` (Vite proxies
+      `/api` to the local host), signed in via MSAL, created two real
+      events through the form, confirmed both `POST /api/events` calls
+      and the subsequent `GET /api/events` refresh succeeded against
+      the live DB.

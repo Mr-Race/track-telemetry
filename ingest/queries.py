@@ -303,6 +303,57 @@ def list_tracks(cnx):
     return tracks
 
 
+def list_organizations(cnx):
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT organization_id, org_code, org_name
+        FROM dbo.organizations ORDER BY org_name""")
+    return [
+        {"organization_id": r[0], "org_code": r[1], "org_name": r[2]}
+        for r in cur.fetchall()
+    ]
+
+
+def list_events(cnx):
+    """Every event with its org/track and how many sessions are logged
+    under it, for the dashboard's event management page."""
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT e.event_id, e.event_name, e.track_id, t.track_name,
+               e.organization_id, o.org_code, e.start_date, e.end_date,
+               (SELECT COUNT(*) FROM dbo.sessions s
+                WHERE s.event_id = e.event_id) AS session_count
+        FROM dbo.events e
+        JOIN dbo.tracks t ON t.track_id = e.track_id
+        JOIN dbo.organizations o ON o.organization_id = e.organization_id
+        ORDER BY e.start_date DESC, e.event_id DESC""")
+    return [
+        {
+            "event_id": r[0], "event_name": r[1],
+            "track_id": r[2], "track_name": r[3],
+            "organization_id": r[4], "org_code": r[5],
+            "start_date": str(r[6]),
+            "end_date": str(r[7]) if r[7] is not None else None,
+            "session_count": r[8],
+        }
+        for r in cur.fetchall()
+    ]
+
+
+def create_event(cnx, track_id, organization_id, event_name, start_date,
+                  end_date):
+    cur = cnx.cursor()
+    cur.execute("""
+        INSERT INTO dbo.events
+            (track_id, organization_id, event_name, start_date, end_date)
+        OUTPUT INSERTED.event_id
+        VALUES (?,?,?,?,?)""",
+        track_id, organization_id, event_name, start_date, end_date)
+    event_id = cur.fetchone()[0]
+    cnx.commit()
+    return event_id
+
+
 def get_track_benchmarks(cnx, track_id):
     """My all-time personal best at this track, plus any manually
     entered friends' benchmark laps."""
