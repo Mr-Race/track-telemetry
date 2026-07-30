@@ -483,4 +483,6 @@ identity-level scope; design as one coherent release.
       reference), a direct query confirmed all four computed totals
       matched (9/9/9/12), then a `func start` restart + manual
       browser check on the live Consumables page confirmed the same.
-      Not yet redeployed to prod.
+      Redeployed both `func-track-telemetry-ingest` and
+      `swa-track-telemetry-dashboard` to prod same session; prod
+      `/api/consumables` 401s with no token, dashboard root 200s.
