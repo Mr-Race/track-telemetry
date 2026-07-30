@@ -46,6 +46,13 @@ function runGroupSummary(sessions: SessionListItem[]): string {
   return "Mixed";
 }
 
+function carSummary(sessions: SessionListItem[]): string {
+  const cars = new Set(sessions.map((s) => s.car).filter((c): c is string => c !== null));
+  if (cars.size === 0) return "—";
+  if (cars.size === 1) return [...cars][0];
+  return "Mixed";
+}
+
 function eventBestLap(sessions: SessionListItem[]): string {
   const best = sessions.reduce<SessionListItem | null>((acc, s) => {
     if (s.best_lap_ms === null) return acc;
@@ -82,6 +89,7 @@ export function SessionListPage() {
           <th>Track</th>
           <th>Sessions</th>
           <th>Run group</th>
+          <th>Car</th>
           <th>Best lap</th>
           <th>Avg valid lap</th>
         </tr>
@@ -97,6 +105,7 @@ export function SessionListPage() {
               <td>{g.track_name}</td>
               <td className="tabular">{g.sessions.length}</td>
               <td>{runGroupSummary(g.sessions)}</td>
+              <td>{carSummary(g.sessions)}</td>
               <td className="tabular">{eventBestLap(g.sessions)}</td>
               <td className="tabular">{eventAvgValidLap(g.sessions)}</td>
             </tr>
@@ -109,6 +118,7 @@ export function SessionListPage() {
                 <td></td>
                 <td></td>
                 <td>{s.run_group ?? "—"}</td>
+                <td>{s.car ?? "—"}</td>
                 <td className="tabular">{s.best_lap ?? "—"}</td>
                 <td className="tabular">{s.avg_valid_lap ?? "—"}</td>
               </tr>

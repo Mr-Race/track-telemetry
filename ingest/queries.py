@@ -13,11 +13,12 @@ def list_sessions(cnx, event_id=None):
         SELECT s.session_id, s.event_id, e.event_name, t.track_name,
                s.session_number, s.session_date, rg.group_code,
                s.weather, s.air_temp_f,
-               lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms
+               lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms, c.display_name
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
         LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
+        LEFT JOIN dbo.cars c ON c.car_id = s.car_id
         OUTER APPLY (
             SELECT MIN(CASE WHEN l.is_valid = 1 THEN l.lap_time_ms END)
                        AS best_lap_ms,
@@ -47,6 +48,7 @@ def list_sessions(cnx, event_id=None):
                                   else None),
             "avg_valid_lap": (fmt_ms(round(r[10]))
                                if r[10] is not None else None),
+            "car": r[11],
         }
         for r in cur.fetchall()
     ]
@@ -57,11 +59,13 @@ def get_session_detail(cnx, session_id):
     cur.execute("""
         SELECT s.session_id, s.event_id, e.event_name, t.track_id,
                t.track_name, s.session_number, s.session_date,
-               rg.group_code, s.weather, s.air_temp_f, s.source_file
+               rg.group_code, s.weather, s.air_temp_f, s.source_file,
+               c.display_name
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
         LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
+        LEFT JOIN dbo.cars c ON c.car_id = s.car_id
         WHERE s.session_id = ?""", session_id)
     row = cur.fetchone()
     if row is None:
@@ -74,6 +78,7 @@ def get_session_detail(cnx, session_id):
         "weather": row[8],
         "air_temp_f": float(row[9]) if row[9] is not None else None,
         "source_file": row[10],
+        "car": row[11],
     }
 
     cur.execute("""
@@ -209,11 +214,12 @@ def session_summary(cnx, session_id):
     cur.execute("""
         SELECT s.session_id, s.event_id, e.event_name, t.track_id,
                t.track_name, s.session_number, s.session_date,
-               rg.group_code, s.weather, s.air_temp_f
+               rg.group_code, s.weather, s.air_temp_f, c.display_name
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
         LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
+        LEFT JOIN dbo.cars c ON c.car_id = s.car_id
         WHERE s.session_id = ?""", session_id)
     row = cur.fetchone()
     if row is None:
@@ -258,6 +264,7 @@ def session_summary(cnx, session_id):
         "session_date": str(session_date), "run_group": row[7],
         "weather": row[8],
         "air_temp_f": float(row[9]) if row[9] is not None else None,
+        "car": row[10],
         "fastest_lap_ms": fastest_ms, "fastest_lap": fmt_ms(fastest_ms),
         "valid_lap_count": len(valid_times),
         "consistency_stdev_ms": round(variance ** 0.5, 1),
@@ -352,6 +359,32 @@ def create_event(cnx, track_id, organization_id, event_name, start_date,
     event_id = cur.fetchone()[0]
     cnx.commit()
     return event_id
+
+
+def list_cars(cnx):
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT car_id, display_name, make, model, year, notes
+        FROM dbo.cars ORDER BY display_name""")
+    return [
+        {
+            "car_id": r[0], "display_name": r[1], "make": r[2],
+            "model": r[3], "year": r[4], "notes": r[5],
+        }
+        for r in cur.fetchall()
+    ]
+
+
+def create_car(cnx, display_name, make, model, year, notes):
+    cur = cnx.cursor()
+    cur.execute("""
+        INSERT INTO dbo.cars (display_name, make, model, year, notes)
+        OUTPUT INSERTED.car_id
+        VALUES (?,?,?,?,?)""",
+        display_name, make, model, year, notes)
+    car_id = cur.fetchone()[0]
+    cnx.commit()
+    return car_id
 
 
 def get_track_benchmarks(cnx, track_id):

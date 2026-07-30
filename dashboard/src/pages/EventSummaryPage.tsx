@@ -32,6 +32,7 @@ export function EventSummaryPage() {
             <th>Session</th>
             <th>Date</th>
             <th>Run group</th>
+            <th>Car</th>
             <th>Best lap</th>
             <th>Avg valid lap</th>
           </tr>
@@ -44,6 +45,7 @@ export function EventSummaryPage() {
               </td>
               <td className="tabular">{s.session_date}</td>
               <td>{s.run_group ?? "—"}</td>
+              <td>{s.car ?? "—"}</td>
               <td className="tabular">{s.best_lap ?? "—"}</td>
               <td className="tabular">{s.avg_valid_lap ?? "—"}</td>
             </tr>

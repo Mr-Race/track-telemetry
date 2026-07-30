@@ -416,3 +416,25 @@ identity-level scope; design as one coherent release.
       registered on the Entra app, see Block 5's redirect-URI gotcha),
       signed in, confirmed the grouped layout against real session
       data.
+- [x] 2026-07-30 — Car catalog, another write-capable dashboard
+      feature alongside events. New `dbo.cars` table (`sql/12_cars.sql`,
+      already applied to the live DB in an earlier session but not
+      yet committed — committed now) with a nullable `sessions.car_id`
+      FK: scoped per session rather than per event since a driver
+      could swap cars between sessions within the same event, matching
+      how `run_group_id` already works (`sql/11_run_groups.sql`).
+      New `GET /api/cars` / `POST /api/cars` on `function_app.py`
+      (`queries.list_cars`/`create_car`), behind the existing
+      `@require_auth` decorator. New `dashboard/src/pages/CarsPage.tsx`
+      mirroring `EventsPage.tsx` (add-car form + table), wired up at
+      `/cars`. `car` is also now surfaced read-only everywhere
+      `run_group` already was — `list_sessions`/`get_session_detail`/
+      `session_summary` LEFT JOIN `dbo.cars`, and `SessionListPage`/
+      `SessionDetailPage`/`EventSummaryPage` display it — but there's
+      no UI yet to assign a car to an existing session (all
+      `sessions.car_id` stay NULL until set manually via SQL, same
+      as `run_group_id` before it). Verified locally end-to-end:
+      `func start` + `npm run dev` on port 5173, confirmed
+      `GET /api/cars` and `GET /api/events` both 401 identically
+      with no token, signed in via MSAL, added a real car through
+      the form, confirmed it listed.

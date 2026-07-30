@@ -16,6 +16,7 @@ export interface SessionListItem {
   best_lap: string | null;
   avg_valid_lap_ms: number | null;
   avg_valid_lap: string | null;
+  car: string | null;
 }
 
 export interface Lap {
@@ -126,6 +127,23 @@ export interface NewEvent {
   end_date: string | null;
 }
 
+export interface Car {
+  car_id: number;
+  display_name: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  notes: string | null;
+}
+
+export interface NewCar {
+  display_name: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  notes: string | null;
+}
+
 interface ApiError {
   error: string;
 }
@@ -214,6 +232,14 @@ export function listEvents(): Promise<EventListItem[]> {
 
 export function createEvent(event: NewEvent): Promise<{ event_id: number }> {
   return postJson("/events", event);
+}
+
+export function listCars(): Promise<Car[]> {
+  return getJson("/cars");
+}
+
+export function createCar(car: NewCar): Promise<{ car_id: number }> {
+  return postJson("/cars", car);
 }
 
 // <img src> can't send an Authorization header, so the satellite image

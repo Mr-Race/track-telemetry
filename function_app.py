@@ -203,6 +203,52 @@ def create_event(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"error": str(exc)}, 500)
 
 
+@app.route(route="cars", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def list_cars(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        return _json_response(queries.list_cars(_connect()), 200)
+    except Exception as exc:
+        logging.exception("list_cars failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
+@app.route(route="cars", methods=["POST"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def create_car(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        body = req.get_json()
+    except ValueError:
+        return _json_response({"error": "request body must be JSON"}, 400)
+
+    try:
+        display_name = str(body["display_name"]).strip()
+    except (KeyError, TypeError):
+        return _json_response({"error": "display_name is required"}, 400)
+    if not display_name:
+        return _json_response({"error": "display_name cannot be empty"}, 400)
+
+    make = body.get("make") or None
+    model = body.get("model") or None
+    notes = body.get("notes") or None
+    year = body.get("year") or None
+    if year is not None:
+        try:
+            year = int(year)
+        except (TypeError, ValueError):
+            return _json_response({"error": "year must be an integer"}, 400)
+
+    try:
+        car_id = queries.create_car(
+            _connect(), display_name, make, model, year, notes)
+        return _json_response({"car_id": car_id}, 201)
+    except Exception as exc:
+        logging.exception("create_car failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
 @app.route(route="ingest", methods=["POST"],
            auth_level=func.AuthLevel.FUNCTION)
 def ingest(req: func.HttpRequest) -> func.HttpResponse:

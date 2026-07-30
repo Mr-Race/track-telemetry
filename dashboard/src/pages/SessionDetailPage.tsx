@@ -36,6 +36,7 @@ export function SessionDetailPage() {
       <p className="muted">
         {detail.session_date} &middot; Session #{detail.session_number}
         {detail.run_group && ` · ${detail.run_group}`}
+        {detail.car && ` · ${detail.car}`}
         {detail.weather && ` · ${detail.weather}`}
         {detail.air_temp_f !== null && ` · ${detail.air_temp_f}°F`}
       </p>
