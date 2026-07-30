@@ -452,19 +452,22 @@ def get_consumables(cnx):
     cur.execute("""
         SELECT c.consumable_id, c.item_name, c.install_date,
                c.install_session_id, c.service_life_sessions,
-               c.service_life_months, c.notes,
-               (SELECT COUNT(*) FROM dbo.sessions s2
-                WHERE s2.session_date >= c.install_date)
-                   AS sessions_since_install,
+               c.service_life_months, c.notes, c.car_id, car.display_name,
+               c.baseline_sessions + (
+                   SELECT COUNT(*) FROM dbo.sessions s2
+                   WHERE s2.session_date >= c.install_date
+                     AND (c.car_id IS NULL OR s2.car_id = c.car_id)
+               ) AS sessions_since_install,
                DATEDIFF(month, c.install_date, GETDATE())
                    AS months_since_install
         FROM dbo.consumables c
+        LEFT JOIN dbo.cars car ON car.car_id = c.car_id
         ORDER BY c.item_name""")
 
     consumables = []
     for r in cur.fetchall():
         service_life_sessions, service_life_months = r[4], r[5]
-        sessions_since, months_since = r[7], r[8]
+        sessions_since, months_since = r[9], r[10]
 
         remaining_pct = None
         if service_life_sessions:
@@ -481,6 +484,7 @@ def get_consumables(cnx):
             "service_life_sessions": service_life_sessions,
             "service_life_months": service_life_months,
             "notes": r[6],
+            "car_id": r[7], "car": r[8],
             "sessions_since_install": sessions_since,
             "months_since_install": months_since,
             "remaining_pct": (round(max(0.0, remaining_pct) * 100, 1)

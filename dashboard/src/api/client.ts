@@ -96,6 +96,8 @@ export interface Consumable {
   service_life_sessions: number | null;
   service_life_months: number | null;
   notes: string | null;
+  car_id: number | null;
+  car: string | null;
   sessions_since_install: number;
   months_since_install: number;
   remaining_pct: number | null;

@@ -30,6 +30,7 @@ function ConsumableRow({ c }: { c: Consumable }) {
         </div>
       )}
       <div className="muted consumable-meta">
+        {c.car && `${c.car} · `}
         Installed {c.install_date} &middot; {c.sessions_since_install} session
         {c.sessions_since_install === 1 ? "" : "s"} / {c.months_since_install} month
         {c.months_since_install === 1 ? "" : "s"} since install

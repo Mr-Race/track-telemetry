@@ -454,3 +454,33 @@ identity-level scope; design as one coherent release.
       401ing correctly with no token) and
       `swa-track-telemetry-dashboard` (prod root 200s) to prod
       afterward, covering both this and the car-catalog entry above.
+- [x] 2026-07-30 — Link consumables to a car; real Integra data.
+      `sql/13_consumables_car_link.sql`: `dbo.consumables` gets a
+      nullable `car_id` FK plus a `baseline_sessions` counter for
+      real-world track days the app hasn't ingested yet (Block 2's
+      historical-backfill item is still open — DB only has 6 sessions
+      total, nowhere near the 9-12 these parts have actually seen).
+      `get_consumables` now computes `sessions_since_install` as
+      `baseline_sessions + COUNT(sessions since install_date scoped to
+      car_id)`, so it keeps incrementing correctly as new sessions get
+      uploaded *and tagged with the Integra's car_id* (depends on the
+      session→car assignment UI two entries up) — car_id NULL falls
+      back to counting all sessions, unchanged from before this
+      migration. Inserted four real rows for car_id=2 (Integra): front
+      brake pads (Paragon P3, installed 2026-05-30, target 40
+      sessions, baseline 9), rear brake pads (same date, target 60,
+      baseline 9), brake fluid (installed 2026-06-13, target 12,
+      baseline 9 — 75% used, near due), engine oil (0W-20, installed
+      2026-04-12, target 20, baseline 11 — one car-tagged session
+      already postdates it). Baselines were reverse-solved so
+      today's total matches the real counts given; a caveat worth
+      remembering if historical sessions ever get backfilled and
+      retroactively car-tagged for dates already covered by a
+      baseline, they'd double-count. `ConsumablesPage.tsx` now shows
+      the linked car name in each row. Verified: migration applied
+      live (ALTER TABLE and the INSERT had to run as separate batches
+      — SQL Server doesn't reliably resolve a same-batch ALTER-then-
+      reference), a direct query confirmed all four computed totals
+      matched (9/9/9/12), then a `func start` restart + manual
+      browser check on the live Consumables page confirmed the same.
+      Not yet redeployed to prod.
