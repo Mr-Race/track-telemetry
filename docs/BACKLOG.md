@@ -449,3 +449,8 @@ identity-level scope; design as one coherent release.
       `func start` restart, confirmed `PATCH /api/sessions/{id}` 401s
       with no token, then a manual browser check — assigned a car to
       a real session through the dropdown and confirmed it stuck.
+      Redeployed both `func-track-telemetry-ingest` (all 14 routes,
+      including the new `cars`/`sessions` PATCH ones, synced and
+      401ing correctly with no token) and
+      `swa-track-telemetry-dashboard` (prod root 200s) to prod
+      afterward, covering both this and the car-catalog entry above.
