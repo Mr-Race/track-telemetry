@@ -38,11 +38,6 @@ every release, version number shown in the dashboard footer.
 The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline. Nothing else blocks 1.0.
-- [ ] **Fix issue #1: MCP server redeploy** — prod MCP is down
-      (stale image queries the dropped sessions.run_group column).
-      Rebuild/redeploy `ca-track-telemetry-mcp` from main, verify all
-      four tools live. Automatic 1.0 blocker: "no known broken
-      pieces in prod."
 - [ ] **Verify /api/ingest still works end-to-end, then add a car
       prompt** — the ingest path hasn't been exercised since several
       `func-track-telemetry-ingest` redeploys (car catalog, session
@@ -534,3 +529,38 @@ identity-level scope; design as one coherent release.
       `replace` route) and `swa-track-telemetry-dashboard` to prod;
       prod `/api/consumables` and the new replace route both 401
       with no token, dashboard root 200s.
+- [x] 2026-07-30 — Fix issue #1: MCP server redeploy (v1.0 blocker).
+      Confirmed current `main` already fixed the reported bug (queries
+      join `dbo.run_groups` now, no bare `run_group` column reference)
+      — the fix was purely a stale image. `az containerapp up --source .`
+      rebuilt and pushed a new image, but the app turned out to be in
+      **Single** revision mode, and the new revision never passed its
+      health check, so Container Apps kept routing to the old (broken)
+      revision automatically — my first MCP client test call actually
+      landed on the *old* revision and reproduced the exact
+      `Invalid column name 'run_group'` bug, which read as if the
+      redeploy had done nothing. Manually deactivating the old revision
+      to force the issue exposed the real problem: the new revision was
+      `CrashLoopBackOff`. Root cause: `mcp_server/requirements.txt` pins
+      `mcp` unversioned; a new `mcp==2.0.0` was released since the last
+      build (2026-07-21) and it removed/renamed `mcp.server.fastmcp`
+      (now `mcp.server.mcpserver.MCPServer`), so `server.py`'s
+      `from mcp.server.fastmcp import FastMCP` import now fails at
+      startup — this also bit local ad hoc MCP client testing
+      (`streamablehttp_client` renamed to `streamable_http_client` in
+      the same release). Pinned `mcp<2.0.0` in
+      `mcp_server/requirements.txt` (server.py stays on the FastMCP API
+      for now; migrating to `MCPServer` is a separate follow-up, not
+      done here) and redeployed again. Verified for real this time:
+      watched the new revision hit `Running`/`Healthy` with 100%
+      traffic and the old one fully deprovisioned (single revision left
+      in `az containerapp revision list`), then called all four tools
+      (`list_sessions`, `get_session_detail`, `get_corner_metrics`,
+      `compare_laps`) against the live endpoint with a real MCP client
+      and got real data back for each. Lesson for future container app
+      redeploys here: don't trust the deploy command's "Congrats!"
+      output or a single warm-up curl — check
+      `az containerapp revision list` for `Healthy`/`Running` and do a
+      real functional call before calling it done, since single-
+      revision-mode silently keeps serving the last-good revision while
+      a bad one fails in the background.

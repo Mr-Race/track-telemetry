@@ -1,4 +1,7 @@
-mcp
+# mcp 2.0.0 dropped mcp.server.fastmcp (renamed/restructured to
+# mcp.server.mcpserver.MCPServer) - pin below that until server.py is
+# migrated off FastMCP.
+mcp<2.0.0
 azure-identity
 azure-storage-blob
 python-tds
