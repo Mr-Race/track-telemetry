@@ -438,3 +438,14 @@ identity-level scope; design as one coherent release.
       `GET /api/cars` and `GET /api/events` both 401 identically
       with no token, signed in via MSAL, added a real car through
       the form, confirmed it listed.
+- [x] 2026-07-30 — Assign a car to an existing session. New
+      `PATCH /api/sessions/{session_id}` (`queries.set_session_car`),
+      same `@require_auth` pattern; `get_session_detail` now also
+      returns `car_id` alongside the display-name `car` field. New
+      `CarAssignment` control on `SessionDetailPage.tsx` — a `<select>`
+      of all cars replacing the old static run_group/car text, wired to
+      the new endpoint and refetching session detail on save (closes
+      the gap noted in the car-catalog entry above). Verified locally:
+      `func start` restart, confirmed `PATCH /api/sessions/{id}` 401s
+      with no token, then a manual browser check — assigned a car to
+      a real session through the dropdown and confirmed it stuck.

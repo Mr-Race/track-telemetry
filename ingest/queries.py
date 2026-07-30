@@ -60,7 +60,7 @@ def get_session_detail(cnx, session_id):
         SELECT s.session_id, s.event_id, e.event_name, t.track_id,
                t.track_name, s.session_number, s.session_date,
                rg.group_code, s.weather, s.air_temp_f, s.source_file,
-               c.display_name
+               c.display_name, s.car_id
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
@@ -79,6 +79,7 @@ def get_session_detail(cnx, session_id):
         "air_temp_f": float(row[9]) if row[9] is not None else None,
         "source_file": row[10],
         "car": row[11],
+        "car_id": row[12],
     }
 
     cur.execute("""
@@ -385,6 +386,16 @@ def create_car(cnx, display_name, make, model, year, notes):
     car_id = cur.fetchone()[0]
     cnx.commit()
     return car_id
+
+
+def set_session_car(cnx, session_id, car_id):
+    cur = cnx.cursor()
+    cur.execute("""
+        UPDATE dbo.sessions SET car_id = ?
+        WHERE session_id = ?""", car_id, session_id)
+    if cur.rowcount == 0:
+        raise ValueError(f"No session with session_id={session_id}")
+    cnx.commit()
 
 
 def get_track_benchmarks(cnx, track_id):

@@ -31,6 +31,7 @@ export interface Lap {
 export interface SessionDetail extends SessionListItem {
   track_id: number;
   source_file: string | null;
+  car_id: number | null;
   laps: Lap[];
   corner_coverage: string[];
 }
@@ -198,6 +199,19 @@ async function postJson<T>(path: string, payload: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function patchJson<T>(path: string, payload: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as ApiError | null;
+    throw new Error(body?.error ?? `Request to ${path} failed (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export function listSessions(): Promise<SessionListItem[]> {
   return getJson("/sessions");
 }
@@ -240,6 +254,13 @@ export function listCars(): Promise<Car[]> {
 
 export function createCar(car: NewCar): Promise<{ car_id: number }> {
   return postJson("/cars", car);
+}
+
+export function updateSessionCar(
+  sessionId: number,
+  carId: number | null,
+): Promise<{ session_id: number; car_id: number | null }> {
+  return patchJson(`/sessions/${sessionId}`, { car_id: carId });
 }
 
 // <img src> can't send an Authorization header, so the satellite image

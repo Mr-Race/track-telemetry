@@ -75,6 +75,35 @@ def get_session_detail(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"error": str(exc)}, 500)
 
 
+@app.route(route="sessions/{session_id:int}", methods=["PATCH"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def update_session(req: func.HttpRequest) -> func.HttpResponse:
+    session_id = int(req.route_params["session_id"])
+    try:
+        body = req.get_json()
+    except ValueError:
+        return _json_response({"error": "request body must be JSON"}, 400)
+
+    if "car_id" not in body:
+        return _json_response({"error": "car_id is required"}, 400)
+    car_id = body["car_id"]
+    if car_id is not None:
+        try:
+            car_id = int(car_id)
+        except (TypeError, ValueError):
+            return _json_response({"error": "car_id must be an integer or null"}, 400)
+
+    try:
+        queries.set_session_car(_connect(), session_id, car_id)
+        return _json_response({"session_id": session_id, "car_id": car_id}, 200)
+    except ValueError as exc:
+        return _json_response({"error": str(exc)}, 404)
+    except Exception as exc:
+        logging.exception("update_session failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
 @app.route(route="sessions/{session_id:int}/summary", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
 @require_auth
