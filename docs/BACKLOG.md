@@ -39,7 +39,12 @@ The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline. Nothing else blocks 1.0.
 - [ ] **Verify /api/ingest still works end-to-end, then add a car
-      prompt** — the ingest path hasn't been exercised since several
+      prompt** — STATUS 2026-07-30: server side is done and verified
+      (see today's Done entry below); still open is re-running the
+      real iOS Shortcut on-device with the new 4th `CarID` prompt to
+      confirm the share-sheet flow itself still works end-to-end (the
+      curl-based verification covers the Function, not Shortcuts.app).
+      Originally: the ingest path hadn't been exercised since several
       `func-track-telemetry-ingest` redeploys (car catalog, session
       PATCH, consumables car-link); re-run the iOS Shortcut
       (`docs/ios_shortcut.md`) with `DryRun = 1` first, then a real
@@ -564,3 +569,31 @@ identity-level scope; design as one coherent release.
       real functional call before calling it done, since single-
       revision-mode silently keeps serving the last-good revision while
       a bad one fails in the background.
+- [x] 2026-07-30 — Verify /api/ingest end-to-end + accept car_id
+      (server side). `load()` (`ingest/racechrono_parser.py`) gains an
+      optional `car_id=None` param, inserted into `dbo.sessions` at
+      load time; `POST /api/ingest` (`function_app.py`) parses an
+      optional `car_id` query param (matching the `event_id`/
+      `session_number` pattern, no validation beyond "is it an int" —
+      same as those two) and passes it through; also echoed in the
+      JSON response summary. CLI (`racechrono_parser.py main()`) gets a
+      matching `--car-id` flag for parity. `docs/ios_shortcut.md`
+      updated: new step 4 "Ask for Input" (`CarID`, default `2` for the
+      Integra) between `DryRun` and the URL-building step, URL
+      template gets a `car_id=` chip, step numbering and the "answer
+      the N prompts" test-instructions line updated (3 -> 4). Verified
+      against live prod (not just dry-run): redeployed
+      `func-track-telemetry-ingest` first, then a `dry_run=1` POST with
+      a real CSV (`event_id=1`, `car_id=2`) returned the full expected
+      summary (track name, 52717 samples, 7 laps, 10-corner coverage,
+      `car_id: 2` echoed back) confirming the whole parse/corner-
+      lookup/blob-upload path survived every redeploy since the last
+      real exercise. Then a real `dry_run=0` load (`session_number=99`,
+      a throwaway value — session_number is `TINYINT`, so `999`
+      overflowed on the first attempt) wrote session_id 12 with 7 laps
+      and 70 corner_metrics; a direct query confirmed
+      `sessions.car_id = 2` on that row before deleting the test
+      session/laps/corner_metrics. What's NOT verified here: the actual
+      iOS Shortcut share-sheet flow on a real phone with the new 4th
+      prompt — that's a manual on-device step, tracked as the remaining
+      half of the still-open backlog item above.

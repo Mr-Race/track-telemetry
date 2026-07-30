@@ -47,23 +47,34 @@ Open the **Shortcuts** app → tap **+** → name it something like
    - Default Answer: `1` (default to a safe test run first)
    - Rename its output variable to `DryRun`.
 
-4. **Add Action → "URL"**
+4. **Add Action → "Ask for Input"**
+   - Input Type: `Number`
+   - Prompt: `Car ID (2 = Integra; leave blank/0 for none)`
+   - Default Answer: `2`
+   - Rename its output variable to `CarID`. This is what makes the
+     consumables car-link feature (`sql/13_consumables_car_link.sql`)
+     keep incrementing `sessions_since_install` automatically — every
+     upload needs `car_id` set for that to work going forward.
+
+5. **Add Action → "URL"**
    - Type the full URL with placeholder query values, e.g.:
      ```
-     https://func-track-telemetry-ingest.azurewebsites.net/api/ingest?event_id=1&session_number=1&dry_run=1&code=PASTE_YOUR_KEY_HERE
+     https://func-track-telemetry-ingest.azurewebsites.net/api/ingest?event_id=1&session_number=1&dry_run=1&car_id=2&code=PASTE_YOUR_KEY_HERE
      ```
-   - Shortcuts splits `?event_id=1&session_number=1&dry_run=1&code=...`
+   - Shortcuts splits `?event_id=1&session_number=1&dry_run=1&car_id=2&code=...`
      into separate tappable query-value chips. Tap the `1` after
      `event_id=` and replace it with the `EventID` variable (use the
      variable-picker icon above the keyboard). Do the same for
-     `session_number=` → `SessionNumber` and `dry_run=` → `DryRun`.
-     Leave `code=` as your literal key — this keeps values
-     URL-encoded correctly even if you later add a filename with
-     spaces.
+     `session_number=` → `SessionNumber`, `dry_run=` → `DryRun`, and
+     `car_id=` → `CarID`. Leave `code=` as your literal key — this
+     keeps values URL-encoded correctly even if you later add a
+     filename with spaces. `car_id` is optional on the Function side
+     (omit the chip entirely, or leave it blank, to load without a
+     car tag) but the prompt makes it the default path.
 
-5. **Add Action → "Get Contents of URL"**
+6. **Add Action → "Get Contents of URL"**
    - URL field: tap it, pick the magic-variable chip for the **URL**
-     action's output from step 4 (not a fresh URL — reuse the built one).
+     action's output from step 5 (not a fresh URL — reuse the built one).
    - Tap **Show More**:
      - Method: `POST`
      - Request Body: `File`
@@ -72,12 +83,12 @@ Open the **Shortcuts** app → tap **+** → name it something like
    - Leave headers empty — the function reads the raw POST body and
      doesn't check Content-Type.
 
-6. **Add Action → "Get Dictionary from Input"**
+7. **Add Action → "Get Dictionary from Input"**
    - Input: the result of "Get Contents of URL" (should auto-select).
      This parses the JSON response so the next step is readable.
 
-7. **Add Action → "Show Result"**
-   - Input: the dictionary from step 6.
+8. **Add Action → "Show Result"**
+   - Input: the dictionary from step 7.
 
 ## 3. Configure share-sheet visibility
 
@@ -93,7 +104,7 @@ Tap the settings icon (ⓘ) at the top of the shortcut editor:
 1. In RaceChrono, open a completed session → **Share/Export** → CSV.
 2. In the share sheet, find `Upload to Track Telemetry` (tap **More**
    and enable it as a favorite if it doesn't show up right away).
-3. Answer the three prompts — leave `DryRun = 1` for the first test.
+3. Answer the four prompts — leave `DryRun = 1` for the first test.
 4. Confirm the JSON result shows the expected track name, sample
    count, lap count, and corner coverage, with `"loaded": false`.
 5. Re-run with `DryRun = 0` once the dry run looks right — check for

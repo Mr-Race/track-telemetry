@@ -321,6 +321,14 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             {"error": "event_id and session_number query params "
                       "are required integers"}, 400)
 
+    car_id = req.params.get("car_id")
+    if car_id is not None:
+        try:
+            car_id = int(car_id)
+        except ValueError:
+            return _json_response(
+                {"error": "car_id query param must be an integer"}, 400)
+
     body = req.get_body()
     if not body:
         return _json_response({"error": "empty request body"}, 400)
@@ -350,6 +358,7 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             "samples": len(samples),
             "blob_name": blob_name,
             "dry_run": dry_run,
+            "car_id": car_id,
             "laps": [
                 {
                     "lap_number": lap["lap_number"],
@@ -370,7 +379,7 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             return _json_response(summary, 200)
 
         session_id = load(cnx, event_id, session_number, filename,
-                           meta, samples, laps, metrics)
+                           meta, samples, laps, metrics, car_id=car_id)
         summary["loaded"] = True
         summary["session_id"] = session_id
         summary["corner_metric_count"] = len(metrics)

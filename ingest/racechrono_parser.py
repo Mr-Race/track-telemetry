@@ -236,7 +236,7 @@ def fetch_corners(cnx, event_id):
 
 
 def load(cnx, event_id, session_number, source_filename, meta, samples,
-         laps, metrics):
+         laps, metrics, car_id=None):
     session_date = None
     created = meta.get("Created", "")
     if created:
@@ -247,11 +247,12 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
     cur = cnx.cursor()
     cur.execute("""
         INSERT INTO dbo.sessions
-            (event_id, session_number, session_date, start_time, source_file)
+            (event_id, session_number, session_date, start_time,
+             source_file, car_id)
         OUTPUT INSERTED.session_id
-        VALUES (?,?,?,?,?)""",
+        VALUES (?,?,?,?,?,?)""",
         event_id, session_number, session_date,
-        start_time, source_filename)
+        start_time, source_filename, car_id)
     session_id = cur.fetchone()[0]
 
     lap_ids = {}
@@ -290,6 +291,7 @@ def main():
     ap.add_argument("--database")
     ap.add_argument("--event-id", type=int)
     ap.add_argument("--session-number", type=int, default=1)
+    ap.add_argument("--car-id", type=int, default=None)
     ap.add_argument("--load", action="store_true",
                     help="write to DB (default is dry run)")
     ap.add_argument("--auth", choices=["interactive", "default"],
@@ -346,7 +348,8 @@ def main():
         if cnx is None:
             sys.exit("--load requires --server/--database/--event-id")
         sid = load(cnx, args.event_id, args.session_number,
-                   args.csv.split("/")[-1], meta, samples, laps, metrics)
+                   args.csv.split("/")[-1], meta, samples, laps, metrics,
+                   car_id=args.car_id)
         print(f"\nLoaded as session_id {sid}: "
               f"{len(laps)} laps, {len(metrics)} corner metrics.")
     else:
