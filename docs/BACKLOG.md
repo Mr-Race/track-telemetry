@@ -500,3 +500,37 @@ identity-level scope; design as one coherent release.
       Redeployed both `func-track-telemetry-ingest` and
       `swa-track-telemetry-dashboard` to prod same session; prod
       `/api/consumables` 401s with no token, dashboard root 200s.
+- [x] 2026-07-30 — Consumable replacement history + reset-to-100%.
+      Life% was already computed only from sessions/months on or
+      after `install_date` (sql/08_consumables.sql), but there was no
+      way to log a real-world replacement (new pads, a fluid flush, an
+      oil change) other than hand-inserting a row, and `get_consumables`
+      had no active/inactive concept — a manual insert would just leave
+      two rows for the same item forever, one permanently stuck
+      overdue. `sql/14_consumables_history.sql` adds `active BIT
+      DEFAULT 1` and `previous_consumable_id` (self-FK) to
+      `dbo.consumables`. New `queries.replace_consumable`: retires the
+      current row (`active = 0`) and inserts a fresh one carrying over
+      `item_name`/`service_life_*`/`car_id`, dated today (or a supplied
+      date), linked back via `previous_consumable_id` — so remaining
+      life recomputes from the new row's own `install_date` and reads
+      100% immediately, while the full service history per car stays
+      in the table (never deleted). `get_consumables` now filters
+      `WHERE active = 1`. New `POST /api/consumables/{id}/replace`
+      (`{install_date?, install_session_id?, notes?}`), same
+      `@require_auth` pattern. `ConsumablesPage.tsx` gets a "Log
+      replacement" control per row (date + notes, defaulting to today)
+      that calls the new endpoint and refetches. Verified against the
+      live DB: migration applied (two ALTERs, run as separate batches
+      again), then a throwaway consumable row was inserted, run through
+      `replace_consumable`, and deleted afterward — confirmed the old
+      row flips to `active = 0`, the new row links via
+      `previous_consumable_id` and reads 100%/not-overdue, and
+      re-replacing an already-inactive row raises. Confirmed the four
+      real Integra rows were untouched throughout. `func start`
+      confirmed the new route registers and 401s with no token, same
+      as the existing routes. Redeployed both
+      `func-track-telemetry-ingest` (15 routes now, including the new
+      `replace` route) and `swa-track-telemetry-dashboard` to prod;
+      prod `/api/consumables` and the new replace route both 401
+      with no token, dashboard root 200s.

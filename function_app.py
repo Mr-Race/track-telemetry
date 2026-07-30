@@ -174,6 +174,38 @@ def get_consumables(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"error": str(exc)}, 500)
 
 
+@app.route(route="consumables/{consumable_id:int}/replace", methods=["POST"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def replace_consumable(req: func.HttpRequest) -> func.HttpResponse:
+    consumable_id = int(req.route_params["consumable_id"])
+    try:
+        body = req.get_json()
+    except ValueError:
+        body = {}
+
+    install_date = body.get("install_date") or None
+    notes = body.get("notes") or None
+    install_session_id = body.get("install_session_id") or None
+    if install_session_id is not None:
+        try:
+            install_session_id = int(install_session_id)
+        except (TypeError, ValueError):
+            return _json_response(
+                {"error": "install_session_id must be an integer"}, 400)
+
+    try:
+        new_id = queries.replace_consumable(
+            _connect(), consumable_id, install_date, install_session_id,
+            notes)
+        return _json_response({"consumable_id": new_id}, 201)
+    except ValueError as exc:
+        return _json_response({"error": str(exc)}, 404)
+    except Exception as exc:
+        logging.exception("replace_consumable failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
 @app.route(route="organizations", methods=["GET"],
            auth_level=func.AuthLevel.ANONYMOUS)
 @require_auth

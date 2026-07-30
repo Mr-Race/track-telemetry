@@ -4,6 +4,8 @@ both callers query the DB the same way instead of maintaining two copies of
 the same SQL.
 """
 
+from datetime import date
+
 from .racechrono_parser import fmt_ms
 
 
@@ -445,9 +447,11 @@ def get_track_benchmarks(cnx, track_id):
 
 
 def get_consumables(cnx):
-    """Every tracked consumable with sessions/months elapsed since
-    install, so the dashboard can render remaining-life bars without
-    the caller doing date math."""
+    """Every currently-active tracked consumable with sessions/months
+    elapsed since install, so the dashboard can render remaining-life
+    bars without the caller doing date math. Replaced items (active =
+    0, see replace_consumable) drop out of this list but stay in the
+    table as history, chained via previous_consumable_id."""
     cur = cnx.cursor()
     cur.execute("""
         SELECT c.consumable_id, c.item_name, c.install_date,
@@ -462,6 +466,7 @@ def get_consumables(cnx):
                    AS months_since_install
         FROM dbo.consumables c
         LEFT JOIN dbo.cars car ON car.car_id = c.car_id
+        WHERE c.active = 1
         ORDER BY c.item_name""")
 
     consumables = []
@@ -492,3 +497,45 @@ def get_consumables(cnx):
             "overdue": (remaining_pct is not None and remaining_pct <= 0),
         })
     return consumables
+
+
+def replace_consumable(cnx, consumable_id, install_date=None,
+                        install_session_id=None, notes=None):
+    """Log a replacement (new pads, a fluid flush, an oil change):
+    retires the current row (active = 0) and inserts a fresh one
+    dated today (or install_date), so remaining life recomputes from
+    that new date - i.e. resets to 100%. item_name/service_life/car_id
+    carry over from the retired row; the new row links back to it via
+    previous_consumable_id so the service history is still queryable."""
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT item_name, service_life_sessions, service_life_months,
+               car_id
+        FROM dbo.consumables
+        WHERE consumable_id = ? AND active = 1""", consumable_id)
+    row = cur.fetchone()
+    if row is None:
+        raise ValueError(
+            f"No active consumable with consumable_id={consumable_id}")
+    item_name, service_life_sessions, service_life_months, car_id = row
+
+    if install_date is None:
+        install_date = date.today().isoformat()
+
+    cur.execute("""
+        UPDATE dbo.consumables SET active = 0
+        WHERE consumable_id = ?""", consumable_id)
+
+    cur.execute("""
+        INSERT INTO dbo.consumables
+            (item_name, install_date, install_session_id,
+             service_life_sessions, service_life_months, notes, car_id,
+             baseline_sessions, previous_consumable_id)
+        OUTPUT INSERTED.consumable_id
+        VALUES (?,?,?,?,?,?,?,0,?)""",
+        item_name, install_date, install_session_id,
+        service_life_sessions, service_life_months, notes, car_id,
+        consumable_id)
+    new_id = cur.fetchone()[0]
+    cnx.commit()
+    return new_id

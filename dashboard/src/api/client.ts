@@ -238,6 +238,19 @@ export function getConsumables(): Promise<Consumable[]> {
   return getJson("/consumables");
 }
 
+export interface ConsumableReplacement {
+  install_date?: string;
+  install_session_id?: number | null;
+  notes?: string | null;
+}
+
+export function replaceConsumable(
+  consumableId: number,
+  replacement: ConsumableReplacement,
+): Promise<{ consumable_id: number }> {
+  return postJson(`/consumables/${consumableId}/replace`, replacement);
+}
+
 export function listOrganizations(): Promise<Organization[]> {
   return getJson("/organizations");
 }
