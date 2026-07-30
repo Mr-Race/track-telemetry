@@ -43,6 +43,20 @@ plus the docs baseline. Nothing else blocks 1.0.
       Rebuild/redeploy `ca-track-telemetry-mcp` from main, verify all
       four tools live. Automatic 1.0 blocker: "no known broken
       pieces in prod."
+- [ ] **Verify /api/ingest still works end-to-end, then add a car
+      prompt** — the ingest path hasn't been exercised since several
+      `func-track-telemetry-ingest` redeploys (car catalog, session
+      PATCH, consumables car-link); re-run the iOS Shortcut
+      (`docs/ios_shortcut.md`) with `DryRun = 1` first, then a real
+      load, to confirm it's not broken. Then add a 4th "Ask for Input"
+      prompt (car_id, matching the EventID/SessionNumber pattern) so
+      `POST /api/ingest` accepts `car_id` and `load()` sets
+      `sessions.car_id` at insert time instead of requiring a manual
+      dashboard step afterward. This is now load-bearing, not just
+      nice-to-have: the consumables car-link feature (2026-07-30) only
+      auto-increments `sessions_since_install` for sessions tagged
+      with the right car, so every new upload needs car_id set for
+      that to keep working going forward.
 - [ ] **Auto-fetch session weather at ingestion** — when a session is
       loaded, call Open-Meteo archive API (free, keyless) with track
       lat/lon + session start_time; populate sessions.weather and
