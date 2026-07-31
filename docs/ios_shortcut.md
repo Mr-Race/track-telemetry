@@ -7,6 +7,13 @@ so a session can be uploaded from the phone at the track. Build this
 natively in the Shortcuts app — no import file, since the format is
 easy to get subtly wrong without on-device testing.
 
+No prompts: the CSV already carries the track name and date, so the
+Function auto-matches the event (create it on the dashboard first),
+auto-picks the next session number for that event, and defaults the
+car to the Integra. The URL is a fixed string — nothing to answer at
+the track, just share the file and go. See "Overriding the defaults"
+below if you ever need to force a specific event/session/car.
+
 ## 1. Get the function key
 
 From a machine with `az` logged in (device-code login against the
@@ -26,55 +33,22 @@ paste it into any file in this repo.
 ## 2. Build the shortcut
 
 Open the **Shortcuts** app → tap **+** → name it something like
-`Upload to Track Telemetry`.
+`Upload to Track Telemetry`. No "Ask for Input" actions needed — the
+whole shortcut is three actions:
 
-1. **Add Action → "Ask for Input"**
-   - Input Type: `Number`
-   - Prompt: `Event ID (1 = Lightning, 2 = Thunderbolt)`
-   - Default Answer: `1`
-   - Tap the output of this action (top-right "..." on the action, or
-     tap the blue result chip) and rename the variable to `EventID`.
-
-2. **Add Action → "Ask for Input"**
-   - Input Type: `Number`
-   - Prompt: `Session number (1, 2, 3... for this event)`
-   - Default Answer: `1`
-   - Rename its output variable to `SessionNumber`.
-
-3. **Add Action → "Ask for Input"**
-   - Input Type: `Number`
-   - Prompt: `Dry run? (1 = test only, 0 = load for real)`
-   - Default Answer: `1` (default to a safe test run first)
-   - Rename its output variable to `DryRun`.
-
-4. **Add Action → "Ask for Input"**
-   - Input Type: `Number`
-   - Prompt: `Car ID (2 = Integra; leave blank/0 for none)`
-   - Default Answer: `2`
-   - Rename its output variable to `CarID`. This is what makes the
-     consumables car-link feature (`sql/13_consumables_car_link.sql`)
-     keep incrementing `sessions_since_install` automatically — every
-     upload needs `car_id` set for that to work going forward.
-
-5. **Add Action → "URL"**
-   - Type the full URL with placeholder query values, e.g.:
+1. **Add Action → "URL"**
+   - Type the full URL, literally, with your function key pasted in:
      ```
-     https://func-track-telemetry-ingest.azurewebsites.net/api/ingest?event_id=1&session_number=1&dry_run=1&car_id=2&code=PASTE_YOUR_KEY_HERE
+     https://func-track-telemetry-ingest.azurewebsites.net/api/ingest?code=PASTE_YOUR_KEY_HERE
      ```
-   - Shortcuts splits `?event_id=1&session_number=1&dry_run=1&car_id=2&code=...`
-     into separate tappable query-value chips. Tap the `1` after
-     `event_id=` and replace it with the `EventID` variable (use the
-     variable-picker icon above the keyboard). Do the same for
-     `session_number=` → `SessionNumber`, `dry_run=` → `DryRun`, and
-     `car_id=` → `CarID`. Leave `code=` as your literal key — this
-     keeps values URL-encoded correctly even if you later add a
-     filename with spaces. `car_id` is optional on the Function side
-     (omit the chip entirely, or leave it blank, to load without a
-     car tag) but the prompt makes it the default path.
+   - That's it — no `event_id`, `session_number`, `car_id`, or
+     `dry_run` chips. The Function resolves all three from the CSV
+     and existing dashboard data (see "How auto-resolution works"
+     below) and defaults to a real load, not a dry run.
 
-6. **Add Action → "Get Contents of URL"**
+2. **Add Action → "Get Contents of URL"**
    - URL field: tap it, pick the magic-variable chip for the **URL**
-     action's output from step 5 (not a fresh URL — reuse the built one).
+     action's output from step 1 (not a fresh URL — reuse the built one).
    - Tap **Show More**:
      - Method: `POST`
      - Request Body: `File`
@@ -83,12 +57,38 @@ Open the **Shortcuts** app → tap **+** → name it something like
    - Leave headers empty — the function reads the raw POST body and
      doesn't check Content-Type.
 
-7. **Add Action → "Get Dictionary from Input"**
+3. **Add Action → "Get Dictionary from Input"**
    - Input: the result of "Get Contents of URL" (should auto-select).
      This parses the JSON response so the next step is readable.
 
-8. **Add Action → "Show Result"**
-   - Input: the dictionary from step 7.
+4. **Add Action → "Show Result"**
+   - Input: the dictionary from step 3. Check the `event_id`,
+     `session_number`, and `track` fields in the result to confirm it
+     matched the session you meant to upload.
+
+## How auto-resolution works
+
+- **Event**: matched from the CSV's `Track name` + `Created` date
+  against `dbo.events` (track + date falling within
+  `start_date`..`end_date`). **The event must already exist** — create
+  it on the dashboard's Events page before the track day, or the
+  upload 400s with "No event found for ... Create the event on the
+  dashboard first."
+- **Session number**: the next unused number for that event
+  (`MAX(session_number) + 1`), so back-to-back uploads at the same
+  event just increment automatically.
+- **Car**: defaults to the Integra (`car_id=2`) — the only car
+  currently tracked. Change `DEFAULT_CAR_ID` in `function_app.py` if
+  that stops being true.
+
+## Overriding the defaults
+
+Append `event_id=`, `session_number=`, and/or `car_id=` query params
+to the URL to force a value instead of auto-resolving it — useful for
+re-uploading into a specific slot, or a dry run
+(`&dry_run=1`, response has `"loaded": false` and nothing is written
+to `dbo.sessions`/`dbo.laps`). The raw CSV is always archived to Blob
+regardless of `dry_run`.
 
 ## 3. Configure share-sheet visibility
 
@@ -101,26 +101,31 @@ Tap the settings icon (ⓘ) at the top of the shortcut editor:
 
 ## 4. Test it
 
-1. In RaceChrono, open a completed session → **Share/Export** → CSV.
-2. In the share sheet, find `Upload to Track Telemetry` (tap **More**
+1. Make sure the event for today is already created on the dashboard
+   (Events page) — auto-resolution has nothing to match against
+   otherwise.
+2. In RaceChrono, open a completed session → **Share/Export** → CSV.
+3. In the share sheet, find `Upload to Track Telemetry` (tap **More**
    and enable it as a favorite if it doesn't show up right away).
-3. Answer the four prompts — leave `DryRun = 1` for the first test.
-4. Confirm the JSON result shows the expected track name, sample
-   count, lap count, and corner coverage, with `"loaded": false`.
-5. Re-run with `DryRun = 0` once the dry run looks right — check for
-   `"loaded": true` and a `session_id`.
+4. Confirm the JSON result shows `"loaded": true`, the expected
+   `event_id`/`session_number`/`track`, a `session_id`, sample count,
+   lap count, and corner coverage.
 
 ## Troubleshooting
 
 - **401/403 from the Function**: the `code=` value is wrong or missing
   — re-check the key from step 1 (keys can be rotated in the portal).
-- **400 "event_id and session_number query params are required
-  integers"**: one of the `Ask for Input` values didn't get wired into
-  the URL query chip correctly — re-open the URL action and confirm
-  each chip shows the variable name, not literal `1`.
-- **`UQ_sessions_event_number` violation on a real load**: that
-  event_id + session_number combination is already in `dbo.sessions`
-  — bump the session number.
+- **400 "No event found for '<track>' on <date>. Create the event on
+  the dashboard first."**: add the event on the dashboard's Events
+  page before uploading, or the CSV's date/track doesn't fall inside
+  any existing event's date range — check `start_date`/`end_date`.
+- **400 "Multiple events match ... pass event_id explicitly"**: two
+  events at the same track overlap the CSV's date — append
+  `&event_id=` to the URL to disambiguate for this upload.
+- **`UQ_sessions_event_number` violation on a real load**: session
+  numbers are auto-assigned per event, so this should be rare — it
+  means a concurrent upload raced this one to the same number. Just
+  re-run the shortcut.
 - **Timeout on the very first upload of the day**: expected, not a bug.
   The Function App (Consumption plan) spins workers down when idle, and
   the free-tier serverless SQL DB auto-pauses too — the first request
@@ -133,5 +138,7 @@ Tap the settings icon (ⓘ) at the top of the shortcut editor:
 The Function defaults to `session_<epoch>.csv` in Blob storage if no
 `filename` is given. To keep the RaceChrono export's real name, insert
 a **"Get Details of Files"** action (Detail: `Name`) on `Shortcut
-Input` right after step 1, rename its output to `Filename`, and add a
-`filename=` chip in the URL action wired to that variable.
+Input` *before* the URL action, rename its output to `Filename`, and
+add a `&filename=` chip in the URL action wired to that variable (the
+URL will then have both `code=` and `filename=` chips, tap the
+variable-picker icon to wire the latter).

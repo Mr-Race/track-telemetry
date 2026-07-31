@@ -235,13 +235,57 @@ def fetch_corners(cnx, event_id):
              "zone_radius_m": r[4]} for r in cur.fetchall()]
 
 
+def parse_session_date(meta):
+    created = meta.get("Created", "")
+    if not created:
+        return None
+    return datetime.strptime(created.split(",")[0], "%d/%m/%Y").date()
+
+
+def resolve_event_id(cnx, meta):
+    """Auto-match the CSV's track name + date against an event already
+    created on the dashboard, so phone uploads don't need a manual
+    event_id prompt."""
+    track_name = meta.get("Track name")
+    session_date = parse_session_date(meta)
+    if not track_name or session_date is None:
+        raise ValueError(
+            "Can't auto-match an event: CSV is missing 'Track name' or "
+            "'Created' date.")
+
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT e.event_id
+        FROM dbo.events e
+        JOIN dbo.tracks t ON t.track_id = e.track_id
+        WHERE t.track_name = ?
+          AND e.start_date <= ?
+          AND ISNULL(e.end_date, e.start_date) >= ?""",
+        track_name, session_date, session_date)
+    rows = cur.fetchall()
+    if not rows:
+        raise ValueError(
+            f"No event found for '{track_name}' on {session_date}. "
+            "Create the event on the dashboard first, or pass event_id "
+            "explicitly.")
+    if len(rows) > 1:
+        raise ValueError(
+            f"Multiple events match '{track_name}' on {session_date} "
+            f"({[r[0] for r in rows]}) - pass event_id explicitly.")
+    return rows[0][0]
+
+
+def next_session_number(cnx, event_id):
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT ISNULL(MAX(session_number), 0) + 1
+        FROM dbo.sessions WHERE event_id = ?""", event_id)
+    return cur.fetchone()[0]
+
+
 def load(cnx, event_id, session_number, source_filename, meta, samples,
          laps, metrics, car_id=None):
-    session_date = None
-    created = meta.get("Created", "")
-    if created:
-        session_date = datetime.strptime(created.split(",")[0],
-                                         "%d/%m/%Y").date()
+    session_date = parse_session_date(meta)
     start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
 
     cur = cnx.cursor()

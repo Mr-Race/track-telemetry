@@ -597,3 +597,27 @@ identity-level scope; design as one coherent release.
       iOS Shortcut share-sheet flow on a real phone with the new 4th
       prompt — that's a manual on-device step, tracked as the remaining
       half of the still-open backlog item above.
+- [x] 2026-07-31 — Drop all Shortcut prompts: POST /api/ingest now
+      auto-resolves event_id, session_number, and car_id instead of
+      requiring them as query params. `ingest/racechrono_parser.py`
+      gains `resolve_event_id()` (matches the CSV's `Track name` +
+      `Created` date against `dbo.events`, erroring with a clear message
+      if zero or multiple events match) and `next_session_number()`
+      (`MAX(session_number)+1` for the resolved event); `parse_session_date()`
+      factored out of `load()` so both share the same date-parsing logic.
+      `function_app.py` calls these only when the query param is omitted
+      (still overridable via `event_id=`/`session_number=`/`car_id=` for
+      edge cases) and defaults `car_id` to a new `DEFAULT_CAR_ID = 2`
+      (the Integra) constant. `dry_run` and `filename` prompts were
+      already optional query params, just never exposed in the Shortcut.
+      `docs/ios_shortcut.md` rewritten: the Shortcut is now 3 actions
+      (URL → Get Contents of URL → Show Result) with a literal, static
+      URL — no "Ask for Input" actions at all. Verified against live
+      prod: redeployed `func-track-telemetry-ingest`, then a bare
+      `dry_run=1` POST (no event_id/session_number/car_id/filename) of
+      the real Lightning CSV correctly resolved `event_id: 1,
+      session_number: 4, car_id: 2` — matching event 1's actual next
+      unused session number and the Integra's car_id — confirming the
+      auto-resolution logic works end-to-end through the real HTTP path,
+      not just locally. Still open: exercising the rebuilt Shortcut
+      itself from the Shortcuts app on a real phone (manual, on-device).

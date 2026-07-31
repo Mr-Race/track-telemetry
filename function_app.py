@@ -20,12 +20,17 @@ from ingest.api_auth import require_auth
 from ingest.cloud import get_cloud_connection, upload_raw_blob
 from ingest.racechrono_parser import (
     compute_corner_metrics, compute_laps, fetch_corners, fmt_ms, load,
-    parse_csv,
+    next_session_number, parse_csv, resolve_event_id,
 )
 
 app = func.FunctionApp()
 
 RAW_CONTAINER = "racechrono-raw"
+
+# The only car currently tracked - see sql/13_consumables_car_link.sql.
+# Uploads from the phone don't prompt for a car; override with the
+# car_id query param if that ever changes.
+DEFAULT_CAR_ID = 2
 
 
 def _connect():
@@ -313,21 +318,21 @@ def create_car(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="ingest", methods=["POST"],
            auth_level=func.AuthLevel.FUNCTION)
 def ingest(req: func.HttpRequest) -> func.HttpResponse:
+    # event_id, session_number, and car_id all auto-resolve from the CSV
+    # and existing dashboard data (see below) - these params are just
+    # manual overrides for edge cases, not required for a normal upload.
     try:
-        event_id = int(req.params["event_id"])
-        session_number = int(req.params["session_number"])
-    except (KeyError, ValueError):
+        event_id = req.params.get("event_id")
+        event_id = int(event_id) if event_id is not None else None
+        session_number = req.params.get("session_number")
+        session_number = (int(session_number)
+                           if session_number is not None else None)
+        car_id = req.params.get("car_id")
+        car_id = int(car_id) if car_id is not None else None
+    except ValueError:
         return _json_response(
-            {"error": "event_id and session_number query params "
-                      "are required integers"}, 400)
-
-    car_id = req.params.get("car_id")
-    if car_id is not None:
-        try:
-            car_id = int(car_id)
-        except ValueError:
-            return _json_response(
-                {"error": "car_id query param must be an integer"}, 400)
+            {"error": "event_id, session_number, and car_id query params "
+                      "must be integers"}, 400)
 
     body = req.get_body()
     if not body:
@@ -335,26 +340,35 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
 
     dry_run = req.params.get("dry_run") == "1"
     filename = req.params.get("filename") or f"session_{int(time.time())}.csv"
-    blob_name = (f"{event_id}/{session_number}_{int(time.time())}"
-                 f"_{uuid.uuid4().hex[:8]}_{filename}")
 
     try:
-        upload_raw_blob(os.environ["STORAGE_ACCOUNT_URL"], RAW_CONTAINER,
-                         blob_name, body)
-
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             tmp.write(body)
             tmp.flush()
             meta, samples = parse_csv(tmp.name)
 
         laps = compute_laps(samples)
-
         cnx = _connect()
+
+        if event_id is None:
+            event_id = resolve_event_id(cnx, meta)
+        if session_number is None:
+            session_number = next_session_number(cnx, event_id)
+        if car_id is None:
+            car_id = DEFAULT_CAR_ID
+
+        blob_name = (f"{event_id}/{session_number}_{int(time.time())}"
+                     f"_{uuid.uuid4().hex[:8]}_{filename}")
+        upload_raw_blob(os.environ["STORAGE_ACCOUNT_URL"], RAW_CONTAINER,
+                         blob_name, body)
+
         corners = fetch_corners(cnx, event_id)
         metrics = compute_corner_metrics(samples, corners) if corners else []
 
         summary = {
             "track": meta.get("Track name"),
+            "event_id": event_id,
+            "session_number": session_number,
             "samples": len(samples),
             "blob_name": blob_name,
             "dry_run": dry_run,
