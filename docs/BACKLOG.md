@@ -171,7 +171,7 @@ identity-level scope; design as one coherent release.
       their own RaceChrono sessions, share best laps and corner
       speeds; ghost comparisons against friends' laps. MAJOR scope:
       per-user data ownership on sessions/laps and sharing
-      permissions on top of the existing Entra External ID + 
+      permissions on top of the existing Entra External ID +
       driver_id foundation (schema prep done 2026-07-23).
 
 ## Weekend 2 (complete)
