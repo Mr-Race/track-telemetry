@@ -13,12 +13,12 @@ interview conversations.
 2. **[How it works](how-it-works.md)** — a plain-language tour of
    the platform, following one lap of data from the car to a
    conversation.
-3. **Outcomes** *(planned)* — the proof points expanded into short
+3. **[The working model](working-model.md)** — AI-assisted
+   engineering as practiced here: division of labor, review
+   discipline, conversational governance. The leadership story.
+4. **Outcomes** *(planned)* — the proof points expanded into short
    case studies: the optimal-lap prediction, the data-quality
    catches, the cost audit.
-4. **The working model** *(planned)* — AI-assisted engineering as
-   practiced here: division of labor, review discipline,
-   conversational governance. The leadership story.
 5. **Cost model** *(planned)* — how a full cloud platform runs at
    effectively $0/month, and why that's architecture rather than
    frugality.
