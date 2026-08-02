@@ -149,6 +149,24 @@ plus the docs baseline. Nothing else blocks 1.0.
       `GET /api/events/{id}/summary` endpoint, and timing-screen
       color conventions. Build AFTER v1.0's segment-times +
       optimal-lap work, which the hero tiles depend on.
+- [ ] **Events list: in progress / upcoming / past split** (added
+      2026-08-02) — the events list renders one flat table today.
+      Split it into three groups using the dates already on
+      `dbo.events`: **In progress** (today between start and end,
+      inclusive — a multi-day weekend stays in progress across both
+      days), **Upcoming** (sorted soonest-first; it's a planning
+      view), **Past** (sorted most-recent-first; it's a review
+      view). Compute the group server-side as a `phase` field on the
+      `GET /api/events` rows rather than in the client, so the MCP
+      tools and the dashboard agree on what "upcoming" means. Use
+      the track's local date, not UTC — a UTC comparison flips US
+      East events a day early. Null `end_date` falls back to
+      `start_date`; empty groups collapse rather than render an
+      empty header; an event with no sessions yet is valid in
+      Upcoming/In progress with em dashes in the aggregate columns.
+      Full detail in `docs/specs/event-summary-page.md`. Independent
+      of the event summary page above — no dependency on segment
+      times, so this can land earlier.
 - [ ] **Login page on a custom domain (www.mr-race.com)** — front the
       dashboard/MCP with the owned domain instead of raw Azure URLs.
 - [ ] API Management in front of the ingest endpoint (hardening story)
