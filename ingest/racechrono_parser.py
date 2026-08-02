@@ -188,6 +188,82 @@ def compute_corner_metrics(samples, corners):
     return metrics
 
 
+def _closest_approach_time(pts, apex_lat, apex_lon):
+    """Interpolated elapsed-time of closest approach to (apex_lat,
+    apex_lon) among pts (chronologically ordered lap samples), via
+    parabolic interpolation around the sample of minimum distance.
+    The raw per-sample minimum jitters by up to one sample interval
+    depending on GPS timing - fine for entry/exit speed, but too
+    imprecise as a segment-time gate when summed across many corners.
+    """
+    dists = [haversine_m(p["lat"], p["lon"], apex_lat, apex_lon) for p in pts]
+    i = min(range(len(dists)), key=lambda k: dists[k])
+    if i == 0 or i == len(pts) - 1:
+        return pts[i]["elapsed"]
+
+    t0, t1, t2 = pts[i - 1]["elapsed"], pts[i]["elapsed"], pts[i + 1]["elapsed"]
+    f0, f1, f2 = dists[i - 1], dists[i], dists[i + 1]
+    denom = (t1 - t0) * (f1 - f2) - (t1 - t2) * (f1 - f0)
+    if denom == 0:
+        return t1
+    t_star = t1 - 0.5 * ((t1 - t0) ** 2 * (f1 - f2) -
+                         (t1 - t2) ** 2 * (f1 - f0)) / denom
+    return t_star if t0 <= t_star <= t2 else t1
+
+
+def compute_segment_times(samples, corners):
+    """Per-lap corner-to-corner segment times (see sql/16_segment_times.sql
+    for the full rationale). Returns a list of dicts: lap_number,
+    segment_order, to_corner_id (None for the final segment),
+    segment_time_ms. A lap with any unresolved or out-of-order gate is
+    left out entirely rather than guessing at a partial chain."""
+    valid_corners = [c for c in corners if c.get("apex_lat") is not None]
+    if not valid_corners:
+        return []
+
+    by_lap = {}
+    for s in samples:
+        by_lap.setdefault(s["lap"], []).append(s)
+    for pts in by_lap.values():
+        pts.sort(key=lambda p: p["elapsed"])
+
+    lap_nums = sorted(by_lap)
+    first_elapsed = {ln: by_lap[ln][0]["elapsed"] for ln in lap_nums}
+
+    segments = []
+    for i, ln in enumerate(lap_nums):
+        pts = by_lap[ln]
+        lap_end = (first_elapsed[lap_nums[i + 1]] if i + 1 < len(lap_nums)
+                   else pts[-1]["elapsed"])
+
+        gate_times = []
+        for c in valid_corners:
+            if not any(haversine_m(p["lat"], p["lon"],
+                                    c["apex_lat"], c["apex_lon"])
+                       <= c["zone_radius_m"] for p in pts):
+                gate_times = None
+                break
+            gate_times.append(
+                _closest_approach_time(pts, c["apex_lat"], c["apex_lon"]))
+        if gate_times is None:
+            continue
+
+        boundaries = [pts[0]["elapsed"], *gate_times, lap_end]
+        if any(b1 <= b0 for b0, b1 in zip(boundaries, boundaries[1:])):
+            continue  # bad GPS/interpolation produced a non-chronological gate
+
+        to_corner_ids = [c.get("corner_id") for c in valid_corners] + [None]
+        for order, (t0, t1, corner_id) in enumerate(
+                zip(boundaries, boundaries[1:], to_corner_ids), start=1):
+            segments.append({
+                "lap_number": ln,
+                "segment_order": order,
+                "to_corner_id": corner_id,
+                "segment_time_ms": round((t1 - t0) * 1000),
+            })
+    return segments
+
+
 def fmt_ms(ms):
     return f"{ms // 60000}:{(ms % 60000) / 1000:06.3f}"
 
@@ -307,7 +383,7 @@ def fetch_session_weather(cnx, event_id, start_time):
 
 
 def load(cnx, event_id, session_number, source_filename, meta, samples,
-         laps, metrics, car_id=None):
+         laps, metrics, car_id=None, segments=None):
     session_date = parse_session_date(meta)
     start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
     w = fetch_session_weather(cnx, event_id, start_time)
@@ -349,6 +425,14 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
             m["entry_speed_mph"], m["exit_speed_mph"],
             m["throttle_pos_apex_pct"], m["rpm_exit"])
 
+    for seg in (segments or []):
+        cur.execute("""
+            INSERT INTO dbo.segment_times
+                (lap_id, segment_order, to_corner_id, segment_time_ms)
+            VALUES (?,?,?,?)""",
+            lap_ids[seg["lap_number"]], seg["segment_order"],
+            seg["to_corner_id"], seg["segment_time_ms"])
+
     cnx.commit()
     return session_id
 
@@ -386,6 +470,7 @@ def main():
         corners = fetch_corners(cnx, args.event_id)
 
     metrics = compute_corner_metrics(samples, corners) if corners else []
+    segments = compute_segment_times(samples, corners) if corners else []
 
     print(f"\nFile: {args.csv}")
     print(f"Track: {meta.get('Track name','?')}  "
@@ -415,14 +500,19 @@ def main():
                           f"entry {m['entry_speed_mph']:5.1f}  "
                           f"exit {m['exit_speed_mph']:5.1f}")
 
+    if segments:
+        laps_covered = len({s["lap_number"] for s in segments})
+        print(f"\nSegment times: {laps_covered}/{len(laps)} laps with a "
+              f"complete gate chain ({len(segments)} segment rows)")
+
     if args.load:
         if cnx is None:
             sys.exit("--load requires --server/--database/--event-id")
         sid = load(cnx, args.event_id, args.session_number,
                    args.csv.split("/")[-1], meta, samples, laps, metrics,
-                   car_id=args.car_id)
-        print(f"\nLoaded as session_id {sid}: "
-              f"{len(laps)} laps, {len(metrics)} corner metrics.")
+                   car_id=args.car_id, segments=segments)
+        print(f"\nLoaded as session_id {sid}: {len(laps)} laps, "
+              f"{len(metrics)} corner metrics, {len(segments)} segments.")
     else:
         print("\nDry run only. Re-run with --load to write to the database.")
 

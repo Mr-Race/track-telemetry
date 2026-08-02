@@ -19,8 +19,9 @@ from ingest import maps, queries
 from ingest.api_auth import require_auth
 from ingest.cloud import get_cloud_connection, upload_raw_blob
 from ingest.racechrono_parser import (
-    compute_corner_metrics, compute_laps, fetch_corners, fmt_ms, load,
-    next_session_number, parse_csv, resolve_event_id,
+    compute_corner_metrics, compute_laps, compute_segment_times,
+    fetch_corners, fmt_ms, load, next_session_number, parse_csv,
+    resolve_event_id,
 )
 
 app = func.FunctionApp()
@@ -364,6 +365,7 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
 
         corners = fetch_corners(cnx, event_id)
         metrics = compute_corner_metrics(samples, corners) if corners else []
+        segments = compute_segment_times(samples, corners) if corners else []
 
         summary = {
             "track": meta.get("Track name"),
@@ -386,6 +388,7 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             ],
             "corner_coverage": sorted({m["corner_code"] for m in metrics},
                                        key=lambda c: (len(c), c)),
+            "laps_with_segments": len({s["lap_number"] for s in segments}),
         }
 
         if dry_run:
@@ -393,10 +396,12 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             return _json_response(summary, 200)
 
         session_id = load(cnx, event_id, session_number, filename,
-                           meta, samples, laps, metrics, car_id=car_id)
+                           meta, samples, laps, metrics, car_id=car_id,
+                           segments=segments)
         summary["loaded"] = True
         summary["session_id"] = session_id
         summary["corner_metric_count"] = len(metrics)
+        summary["segment_count"] = len(segments)
         return _json_response(summary, 200)
 
     except ValueError as exc:

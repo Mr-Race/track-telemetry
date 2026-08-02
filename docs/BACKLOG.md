@@ -52,17 +52,6 @@ every release, version number shown in the dashboard footer.
 The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline. Nothing else blocks 1.0.
-- [ ] **Per-segment (corner-to-corner) times at ingestion** —
-      compute segment times between consecutive corner zones per lap
-      and store them (new segment_times table or columns on
-      corner_metrics). Prerequisite for the optimal-lap feature
-      below; derivable at ingest from data already parsed (zone
-      entry timestamps), no sample storage needed. IMPLEMENTATION
-      NOTE (validated 2026-07-24 on real CSVs): segment boundaries
-      must be fixed distance/timing gates with interpolated crossing
-      times — NOT the per-lap min-speed timestamp, whose lap-to-lap
-      jitter inflates the optimal-lap gap badly (13.3s vs a credible
-      3.1s on the same Thunderbolt session).
 - [ ] **Dashboard: optimal lap time per session** — in the event
       view and session drill-down detail, show each session's
       optimal (theoretical best) lap: the sum of that session's best
@@ -253,6 +242,38 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-02 — Per-segment (corner-to-corner) times at ingestion
+      (v1.0 item, prerequisite for the optimal-lap dashboard item
+      below). New `sql/16_segment_times.sql`
+      (`dbo.segment_times`: lap_id, segment_order 1..N+1, to_corner_id
+      [NULL on the final segment], segment_time_ms). New
+      `racechrono_parser.py` functions: `_closest_approach_time()`
+      (parabolic interpolation around each corner's closest-approach
+      sample, giving a sub-sample-precision crossing time at a FIXED
+      physical gate — the apex — rather than the per-lap min-speed
+      sample the 2026-07-24 note warned off) and
+      `compute_segment_times()` (builds the full per-lap gate chain,
+      skipping a lap entirely if any corner's zone wasn't reached or
+      if the interpolated gates come out non-chronological, rather
+      than storing a partial/wrong chain). Segment boundaries reuse
+      `compute_laps()`'s own first-sample-of-next-lap convention for
+      the lap start/end, so a lap's segment_time_ms values sum to its
+      existing lap_time_ms exactly (verified, off by ≤1ms rounding) —
+      needed so "optimal lap" and "actual best lap" are on the same
+      time basis later. Wired into `load()` (new optional `segments`
+      param) and both call sites (CLI `main()`, `POST /api/ingest`).
+      Verified against both real CSVs before touching prod: Lightning
+      (7/7 laps fully covered, optimal-vs-best gap 2.08s) and
+      Thunderbolt (8/8 laps, gap 2.93s) — both in the "credible ~3s"
+      range the note called out, vs. the old approach's 13.3s bug,
+      confirming the fixed-gate/interpolation method actually fixes
+      it and isn't just algorithmically different. Applied the
+      migration to the live DB, redeployed
+      `func-track-telemetry-ingest`, then ran a throwaway `dry_run=0`
+      load over real HTTP (`session_number=98`) — `segment_count: 77`
+      (7 laps × 11 segments) matched the local computation exactly —
+      before deleting the throwaway session/laps/corner_metrics/
+      segment_times rows and their two archived blobs.
 - [x] 2026-08-02 — Auto-fetch session weather at ingestion (v1.0
       item). New `ingest/weather.py` (stdlib-only: urllib + json, kept
       out of `racechrono_parser.py`'s top-level imports so its
