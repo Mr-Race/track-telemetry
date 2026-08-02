@@ -52,25 +52,6 @@ every release, version number shown in the dashboard footer.
 The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline. Nothing else blocks 1.0.
-- [ ] **Verify /api/ingest still works end-to-end, then add a car
-      prompt** — STATUS 2026-07-30: server side is done and verified
-      (see today's Done entry below); still open is re-running the
-      real iOS Shortcut on-device with the new 4th `CarID` prompt to
-      confirm the share-sheet flow itself still works end-to-end (the
-      curl-based verification covers the Function, not Shortcuts.app).
-      Originally: the ingest path hadn't been exercised since several
-      `func-track-telemetry-ingest` redeploys (car catalog, session
-      PATCH, consumables car-link); re-run the iOS Shortcut
-      (`docs/ios_shortcut.md`) with `DryRun = 1` first, then a real
-      load, to confirm it's not broken. Then add a 4th "Ask for Input"
-      prompt (car_id, matching the EventID/SessionNumber pattern) so
-      `POST /api/ingest` accepts `car_id` and `load()` sets
-      `sessions.car_id` at insert time instead of requiring a manual
-      dashboard step afterward. This is now load-bearing, not just
-      nice-to-have: the consumables car-link feature (2026-07-30) only
-      auto-increments `sessions_since_install` for sessions tagged
-      with the right car, so every new upload needs car_id set for
-      that to keep working going forward.
 - [ ] **Auto-fetch session weather at ingestion** — when a session is
       loaded, call Open-Meteo archive API (free, keyless) with track
       lat/lon + session start_time; populate sessions.weather and
@@ -261,6 +242,13 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-02 — Verify /api/ingest still works end-to-end, then add
+      a car prompt (v1.0 item closed). Server-side auto-resolution
+      landed 2026-07-31 (event_id/session_number/car_id, no prompts
+      needed) and was curl-verified against prod then; the remaining
+      piece — running the rebuilt 3-action Shortcut from the
+      Shortcuts app on a real phone — is now confirmed working
+      end-to-end (share-sheet upload succeeds with no prompts).
 - [x] 2026-07-03 — Resource group, Azure SQL (free tier, Entra-only), Storage
 - [x] 2026-07-06 — Schema DDL with config-aware tracks and corner zones
 - [x] 2026-07-06 — Corner apex coordinates: Lightning 10, Thunderbolt
