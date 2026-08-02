@@ -49,12 +49,45 @@ all-time-PB comparison (session summary already covers vs-prior-
 session; a vs-PB view can be a future session-detail enhancement,
 not an event-page section).
 
+## Events list: temporal split (added 2026-08-02, per AC)
+Applies to the events LIST (`/events`) and anywhere events are
+enumerated — distinct from the single-event summary above.
+
+Split events into three groups, ordered top to bottom:
+
+1. **In progress** — today falls within `start_date`..`end_date`
+   inclusive. Expect zero or one; a multi-day weekend keeps the
+   event "in progress" across both days.
+2. **Upcoming** — `start_date` is in the future. Sorted ascending
+   (soonest first) — this is a planning view, so the nearest event
+   leads.
+3. **Past** — `end_date` is before today. Sorted descending (most
+   recent first) — this is a review view, so the last track day
+   leads.
+
+Notes:
+- Derive the split from the dates already on `dbo.events`; no new
+  columns needed. `end_date` may be null for single-day events —
+  fall back to `start_date` for both bounds.
+- Compute the grouping server-side in the `/api/events` response
+  (a `phase` field per row) rather than in the client, so the MCP
+  tools and the dashboard agree on what "upcoming" means.
+- Use the track's local date, not UTC, when deciding which group an
+  event lands in — a UTC comparison flips events a day early for
+  US East tracks.
+- Empty groups collapse rather than render an empty header.
+- An event with no sessions yet is still valid in Upcoming or In
+  progress — the aggregate columns (best lap, session count) render
+  as em dashes, not zeros.
+
 ## Data requirements
 - Existing: sessions of event with laps (best/avg valid), corner
   metrics per session, event/org/run-group/track joins.
 - New: event-level optimal (min segment time per segment across all
   sessions of the event, summed) — natural extension of the v1.0
   per-session optimal query.
+- New: `phase` (in_progress | upcoming | past) computed per event
+  row in `GET /api/events`, per the temporal-split section above.
 - Likely one new endpoint: GET /api/events/{id}/summary returning
   header data, hero stats, per-session rows, and the first-vs-last
   corner deltas in one payload.
