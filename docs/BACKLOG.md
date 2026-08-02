@@ -15,6 +15,20 @@
   is dropped from the roadmap to avoid licensing costs/dependencies
   down the line — no per-seat or Pro-license exposure; everything
   user-facing stays on free-tier, open tooling.
+- **Not a trackside tool (decided 2026-08-02).** Paddock/session-day
+  analysis stays in RaceChrono, which already does on-device lap
+  comparison and channel overlays and works with no connectivity.
+  This platform is the season-level instrument: cross-session trends,
+  corner progression, optimal-lap synthesis, consumables, weather
+  correlation — all questions that want history, and therefore want
+  the cloud. Consequence: offline-first / PWA-with-local-parse is
+  explicitly OUT of scope, not merely deferred. Poor paddock signal
+  is not a defect to engineer around.
+- **Raw data is sacred.** The archived CSV in Blob is the system of
+  record for a session. Compression is fine; downsampling, column
+  pruning, or format conversion before upload is not — derived or
+  columnar artifacts are generated server-side, never in place of
+  the original.
 
 ## Versioning (decided 2026-07-24)
 Semver-style product versioning:
@@ -111,6 +125,19 @@ plus the docs baseline. Nothing else blocks 1.0.
       Release, CHANGELOG.md created, version in dashboard footer.
 
 ## v1.x — post-launch backlog (additive)
+- [ ] **Gzip the CSV before upload** — raw RaceChrono exports run
+      15-20 MB, which is slow and flaky over weak paddock cellular.
+      Numeric telemetry CSV compresses roughly 10:1, so the same
+      file goes out at ~1.5-2 MB. Compress in the iOS Shortcut
+      before POSTing; Blob archives the `.gz`; the Function
+      decompresses on read (`Content-Encoding`/suffix sniff, with
+      plain-CSV still accepted so historical files and the CLI path
+      keep working). Deliberately compression only — no
+      downsampling, no column pruning, no Parquet conversion on the
+      phone, per the raw-data-is-sacred principle above. If a
+      columnar format is ever wanted, it's a server-side derived
+      artifact (see v2.0 deep telemetry storage), not a replacement
+      for the archived original.
 - [ ] **One-step ingestion (automate the file load)** — remove the
       manual Shortcut prompts. Proposed design: export CSV from
       RaceChrono to a watched OneDrive folder; Logic App (OneDrive
@@ -167,6 +194,19 @@ identity-level scope; design as one coherent release.
       marker. Design target: ghost-lap mode — two laps replayed
       simultaneously for comparison (own laps, and friends' laps
       once multi-user lands). Depends on deep telemetry storage.
+      NOTE: survey prior art before building (serious-racing.com
+      ships 3D track models with onboard/replay modes) and decide
+      deliberately whether replay is worth building here or whether
+      the platform's differentiation stays in analysis.
+- [ ] **Video correlation** — scope this as *correlation*, not
+      "video". The hard problem is time-syncing footage to lap time
+      (clock offset between camera and GPS logger; per-lap seek
+      offsets), not playback. Storage is the second decision and
+      should probably not be Blob: GoPro-bitrate footage gets
+      expensive fast, and unlisted YouTube is free and is what
+      comparable products do — store a URL + offset per lap rather
+      than the media itself. Depends on lap replay for the
+      side-by-side experience to mean anything.
 - [ ] **Multi-user platform** — friends create accounts, upload
       their own RaceChrono sessions, share best laps and corner
       speeds; ghost comparisons against friends' laps. MAJOR scope:
@@ -603,13 +643,14 @@ identity-level scope; design as one coherent release.
       gains `resolve_event_id()` (matches the CSV's `Track name` +
       `Created` date against `dbo.events`, erroring with a clear message
       if zero or multiple events match) and `next_session_number()`
-      (`MAX(session_number)+1` for the resolved event); `parse_session_date()`
-      factored out of `load()` so both share the same date-parsing logic.
-      `function_app.py` calls these only when the query param is omitted
-      (still overridable via `event_id=`/`session_number=`/`car_id=` for
-      edge cases) and defaults `car_id` to a new `DEFAULT_CAR_ID = 2`
-      (the Integra) constant. `dry_run` and `filename` prompts were
-      already optional query params, just never exposed in the Shortcut.
+      (`MAX(session_number)+1` for the resolved event);
+      `parse_session_date()` factored out of `load()` so both share the
+      same date-parsing logic. `function_app.py` calls these only when
+      the query param is omitted (still overridable via
+      `event_id=`/`session_number=`/`car_id=` for edge cases) and
+      defaults `car_id` to a new `DEFAULT_CAR_ID = 2` (the Integra)
+      constant. `dry_run` and `filename` prompts were already optional
+      query params, just never exposed in the Shortcut.
       `docs/ios_shortcut.md` rewritten: the Shortcut is now 3 actions
       (URL → Get Contents of URL → Show Result) with a literal, static
       URL — no "Ask for Input" actions at all. Verified against live
