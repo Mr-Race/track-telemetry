@@ -21,6 +21,7 @@ Design notes:
 
 import argparse
 import csv
+import logging
 import math
 import sys
 from datetime import datetime, timezone
@@ -283,20 +284,46 @@ def next_session_number(cnx, event_id):
     return cur.fetchone()[0]
 
 
+def fetch_session_weather(cnx, event_id, start_time):
+    """Best-effort weather lookup via Open-Meteo, keyed on the event's
+    track location (corner apex centroid) and the session's start
+    time. Returns weather.EMPTY on any failure (no corner coords yet,
+    API error/timeout) so a flaky external call never blocks an
+    ingest."""
+    from ingest import weather
+
+    corners = fetch_corners(cnx, event_id)
+    lats = [c["apex_lat"] for c in corners if c["apex_lat"] is not None]
+    lons = [c["apex_lon"] for c in corners if c["apex_lon"] is not None]
+    if not lats or not lons:
+        return weather.EMPTY
+    try:
+        return weather.fetch_weather(
+            sum(lats) / len(lats), sum(lons) / len(lons), start_time)
+    except Exception:
+        logging.warning("weather fetch failed for event_id=%s", event_id,
+                         exc_info=True)
+        return weather.EMPTY
+
+
 def load(cnx, event_id, session_number, source_filename, meta, samples,
          laps, metrics, car_id=None):
     session_date = parse_session_date(meta)
     start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
+    w = fetch_session_weather(cnx, event_id, start_time)
 
     cur = cnx.cursor()
     cur.execute("""
         INSERT INTO dbo.sessions
             (event_id, session_number, session_date, start_time,
-             source_file, car_id)
+             source_file, car_id, weather, air_temp_f, humidity_pct,
+             wind_mph, precip_in, weather_observed_at)
         OUTPUT INSERTED.session_id
-        VALUES (?,?,?,?,?,?)""",
-        event_id, session_number, session_date,
-        start_time, source_filename, car_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        event_id, session_number, session_date, start_time,
+        source_filename, car_id, w["weather"], w["air_temp_f"],
+        w["humidity_pct"], w["wind_mph"], w["precip_in"],
+        w["weather_observed_at"])
     session_id = cur.fetchone()[0]
 
     lap_ids = {}

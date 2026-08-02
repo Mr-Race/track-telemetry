@@ -52,13 +52,6 @@ every release, version number shown in the dashboard footer.
 The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline. Nothing else blocks 1.0.
-- [ ] **Auto-fetch session weather at ingestion** — when a session is
-      loaded, call Open-Meteo archive API (free, keyless) with track
-      lat/lon + session start_time; populate sessions.weather and
-      air_temp_f automatically. Consider adding columns: humidity_pct,
-      wind_mph, precip_in, track-relevant conditions summary. Capture
-      humidity + observation time, not just temp/summary (the v1.x
-      dashboard weather section consumes them).
 - [ ] **Per-segment (corner-to-corner) times at ingestion** —
       compute segment times between consecutive corner zones per lap
       and store them (new segment_times table or columns on
@@ -242,6 +235,36 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-02 — Auto-fetch session weather at ingestion (v1.0
+      item). New `ingest/weather.py` (stdlib-only: urllib + json, kept
+      out of `racechrono_parser.py`'s top-level imports so its
+      pyodbc/azure-free dry-run path stays intact — pulled in with a
+      lazy import) queries Open-Meteo's free/keyless historical
+      archive API for temperature, humidity, wind, precipitation, and
+      a WMO-code weather summary, at the hour nearest the session's
+      first GPS timestamp. `racechrono_parser.py` gains
+      `fetch_session_weather()`, called from `load()`: it averages the
+      event's track corner apex coordinates (from the already-fetched
+      `fetch_corners()`) as the query point, and swallows any failure
+      (missing coords, API timeout/error) down to an
+      all-`None` result rather than blocking the ingest — a flaky
+      external call should never break a session upload.
+      `sql/15_session_weather.sql` adds `humidity_pct`, `wind_mph`,
+      `precip_in`, `weather_observed_at` to `dbo.sessions` (`weather`
+      and `air_temp_f` already existed as unused manual-entry
+      columns, now auto-populated too). Verified against live prod:
+      applied the migration to the real DB, redeployed
+      `func-track-telemetry-ingest`, then ran the real Lightning CSV
+      through a throwaway `dry_run=0` load (`session_number=97`) over
+      HTTP — confirmed `weather='Clear', air_temp_f=77.4,
+      humidity_pct=43, wind_mph=8.3, precip_in=0,
+      weather_observed_at=2026-05-16 18:00` landed on the row, matching
+      a local direct-call test against the same CSV — then deleted the
+      throwaway session/laps/corner_metrics and its two archived
+      blobs. Exposing the new columns through the dashboard/API is
+      deliberately out of scope here — that's the existing v1.x
+      "Dashboard weather section" item, which already notes it
+      consumes humidity + observation time.
 - [x] 2026-08-02 — Verify /api/ingest still works end-to-end, then add
       a car prompt (v1.0 item closed). Server-side auto-resolution
       landed 2026-07-31 (event_id/session_number/car_id, no prompts
