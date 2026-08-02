@@ -165,7 +165,16 @@ plus the docs baseline. Nothing else blocks 1.0.
       Replaces the manual Google Maps coordinate workflow for new
       tracks.
 - [ ] **Event summary page** — real dashboard behind the
-      /events/:eventId placeholder route (reqs TBD).
+      /events/:eventId placeholder route. SPEC:
+      `docs/specs/event-summary-page.md` (approved by AC 2026-07-25)
+      — header/badges, four hero tiles (event best, event optimal
+      across all sessions of the event, left on table, first-to-last
+      progression), sessions table with per-row progress bars, the
+      first-vs-last corner-delta table sorted by |delta|, weather
+      strip, explicit exclusions, a new
+      `GET /api/events/{id}/summary` endpoint, and timing-screen
+      color conventions. Build AFTER v1.0's segment-times +
+      optimal-lap work, which the hero tiles depend on.
 - [ ] **Login page on a custom domain (www.mr-race.com)** — front the
       dashboard/MCP with the owned domain instead of raw Azure URLs.
 - [ ] API Management in front of the ingest endpoint (hardening story)
@@ -470,6 +479,15 @@ identity-level scope; design as one coherent release.
       registered on the Entra app, see Block 5's redirect-URI gotcha),
       signed in, confirmed the grouped layout against real session
       data.
+- [x] 2026-07-25 — Spec: event summary page
+      (`docs/specs/event-summary-page.md`), approved by AC via an
+      interactive mockup in chat. Defines the real
+      `/events/:eventId` dashboard that replaces the placeholder:
+      header + badges, four hero tiles, sessions table, first-vs-last
+      corner-delta table, weather strip, explicit exclusions, the
+      `GET /api/events/{id}/summary` endpoint shape, and the
+      timing-screen design language. Build is v1.x and gated on
+      v1.0's segment-times + optimal-lap work.
 - [x] 2026-07-30 — Car catalog, another write-capable dashboard
       feature alongside events. New `dbo.cars` table (`sql/12_cars.sql`,
       already applied to the live DB in an earlier session but not
