@@ -15,7 +15,8 @@ def list_sessions(cnx, event_id=None):
         SELECT s.session_id, s.event_id, e.event_name, t.track_name,
                s.session_number, s.session_date, rg.group_code,
                s.weather, s.air_temp_f,
-               lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms, c.display_name
+               lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms, c.display_name,
+               opt_agg.optimal_lap_ms
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
@@ -29,6 +30,16 @@ def list_sessions(cnx, event_id=None):
                        AS avg_valid_lap_ms
             FROM dbo.laps l WHERE l.session_id = s.session_id
         ) lap_agg
+        OUTER APPLY (
+            SELECT SUM(best_ms) AS optimal_lap_ms
+            FROM (
+                SELECT MIN(st.segment_time_ms) AS best_ms
+                FROM dbo.segment_times st
+                JOIN dbo.laps sl ON sl.lap_id = st.lap_id
+                WHERE sl.session_id = s.session_id AND sl.is_valid = 1
+                GROUP BY st.segment_order
+            ) best_segments
+        ) opt_agg
     """
     if event_id is not None:
         sql += " WHERE s.event_id = ?"
@@ -51,6 +62,8 @@ def list_sessions(cnx, event_id=None):
             "avg_valid_lap": (fmt_ms(round(r[10]))
                                if r[10] is not None else None),
             "car": r[11],
+            "optimal_lap_ms": r[12],
+            "optimal_lap": fmt_ms(r[12]) if r[12] is not None else None,
         }
         for r in cur.fetchall()
     ]
@@ -196,6 +209,22 @@ def compare_laps(cnx, session_id_a, session_id_b):
     }
 
 
+def optimal_lap_ms(cur, session_id):
+    """Sum of this session's best segment time per segment_order across
+    its valid laps - the theoretical best lap. None if the session has
+    no segment_times rows yet (ingested before this feature, or every
+    lap missed a corner's gate)."""
+    cur.execute("""
+        SELECT SUM(best_ms) FROM (
+            SELECT MIN(st.segment_time_ms) AS best_ms
+            FROM dbo.segment_times st
+            JOIN dbo.laps l ON l.lap_id = st.lap_id
+            WHERE l.session_id = ? AND l.is_valid = 1
+            GROUP BY st.segment_order
+        ) best_segments""", session_id)
+    return cur.fetchone()[0]
+
+
 def _prior_session_id(cur, track_id, session_date, session_id):
     cur.execute("""
         SELECT TOP 1 s2.session_id
@@ -241,6 +270,8 @@ def session_summary(cnx, session_id):
     variance = (sum((t - mean_ms) ** 2 for t in valid_times)
                 / len(valid_times))
 
+    optimal_ms = optimal_lap_ms(cur, session_id)
+
     prior_session_id = _prior_session_id(cur, track_id, session_date,
                                           session_id)
     corner_deltas = []
@@ -271,6 +302,10 @@ def session_summary(cnx, session_id):
         "fastest_lap_ms": fastest_ms, "fastest_lap": fmt_ms(fastest_ms),
         "valid_lap_count": len(valid_times),
         "consistency_stdev_ms": round(variance ** 0.5, 1),
+        "optimal_lap_ms": optimal_ms,
+        "optimal_lap": fmt_ms(optimal_ms) if optimal_ms is not None else None,
+        "gap_to_optimal_ms": (fastest_ms - optimal_ms
+                               if optimal_ms is not None else None),
         "prior_session_id": prior_session_id,
         "corner_deltas": corner_deltas,
     }

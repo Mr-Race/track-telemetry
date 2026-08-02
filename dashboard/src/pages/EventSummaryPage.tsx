@@ -35,6 +35,7 @@ export function EventSummaryPage() {
             <th>Car</th>
             <th>Best lap</th>
             <th>Avg valid lap</th>
+            <th>Optimal lap</th>
           </tr>
         </thead>
         <tbody>
@@ -48,6 +49,7 @@ export function EventSummaryPage() {
               <td>{s.car ?? "—"}</td>
               <td className="tabular">{s.best_lap ?? "—"}</td>
               <td className="tabular">{s.avg_valid_lap ?? "—"}</td>
+              <td className="tabular">{s.optimal_lap ?? "—"}</td>
             </tr>
           ))}
         </tbody>

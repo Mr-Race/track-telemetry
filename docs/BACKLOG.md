@@ -52,12 +52,6 @@ every release, version number shown in the dashboard footer.
 The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline. Nothing else blocks 1.0.
-- [ ] **Dashboard: optimal lap time per session** — in the event
-      view and session drill-down detail, show each session's
-      optimal (theoretical best) lap: the sum of that session's best
-      segment times, alongside actual best lap and the gap between
-      them ("how much time was left on the table"). Depends on the
-      per-segment times item above.
 - [ ] **Backfill historical sessions** — upload all pre-existing
       RaceChrono CSVs (before the ingest Function/Shortcut existed)
       through the same /api/ingest path so past track days show up
@@ -242,6 +236,36 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-02 — Dashboard: optimal lap time per session (v1.0
+      item). `ingest/queries.py` gains `optimal_lap_ms()` (sums each
+      segment_order's best `segment_time_ms` across a session's valid
+      laps) and wires it into both `session_summary()` (adds
+      `optimal_lap_ms`/`optimal_lap`/`gap_to_optimal_ms`, all `None`
+      if the session predates segment_times) and `list_sessions()`
+      (adds `optimal_lap_ms`/`optimal_lap` via the same OUTER APPLY
+      pattern the existing best/avg-lap columns use). Session
+      drill-down (`SessionDetailPage.tsx`) gains "Optimal lap" and
+      "Left on table" stat tiles alongside the existing three; the
+      event view's placeholder sessions table
+      (`EventSummaryPage.tsx`) gains an "Optimal lap" column — the
+      full hero-tile rebuild of that page is separately spec'd and
+      v1.x-gated (`docs/specs/event-summary-page.md`), so this only
+      extends the still-live placeholder, not a preview of that spec.
+      Verified against a throwaway real-data session (segments kept
+      this time, not deleted first): `queries.session_summary()` and
+      `list_sessions()` both returned the correct optimal
+      (1:29.161) and gap (2076ms), matching the local
+      `compute_segment_times()` result from the prior item exactly.
+      `tsc --noEmit` clean. Real authenticated in-browser check isn't
+      automatable here (Entra sign-in requires an interactive user —
+      see `block5_auth_progress` memory), so instead rendered the new
+      StatTiles/column with the real verified values via a throwaway
+      unauthenticated preview route + a local Playwright screenshot
+      (light and dark), confirmed layout/styling, then deleted the
+      preview route/file before committing — nothing shipped. Redeployed
+      `func-track-telemetry-ingest` (query changes) and rebuilt +
+      redeployed `swa-track-telemetry-dashboard` (SWA CLI) to prod.
+      Cleaned up the throwaway session afterward.
 - [x] 2026-08-02 — Per-segment (corner-to-corner) times at ingestion
       (v1.0 item, prerequisite for the optimal-lap dashboard item
       below). New `sql/16_segment_times.sql`

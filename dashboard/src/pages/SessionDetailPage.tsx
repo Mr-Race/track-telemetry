@@ -10,6 +10,10 @@ function formatStdev(ms: number): string {
   return `±${(ms / 1000).toFixed(3)}s`;
 }
 
+function formatGap(ms: number): string {
+  return `+${(ms / 1000).toFixed(3)}s`;
+}
+
 function CarAssignment({
   sessionId,
   carId,
@@ -105,6 +109,16 @@ export function SessionDetailPage() {
           sublabel="stdev across valid laps"
         />
         <StatTile label="Valid laps" value={`${summary.valid_lap_count} / ${detail.laps.length}`} />
+        {summary.optimal_lap && (
+          <StatTile label="Optimal lap" value={summary.optimal_lap} sublabel="sum of best segments" />
+        )}
+        {summary.gap_to_optimal_ms !== null && (
+          <StatTile
+            label="Left on table"
+            value={formatGap(summary.gap_to_optimal_ms)}
+            sublabel="fastest lap vs. optimal"
+          />
+        )}
       </div>
 
       <h3>Track</h3>

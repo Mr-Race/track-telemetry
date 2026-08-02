@@ -17,6 +17,8 @@ export interface SessionListItem {
   avg_valid_lap_ms: number | null;
   avg_valid_lap: string | null;
   car: string | null;
+  optimal_lap_ms: number | null;
+  optimal_lap: string | null;
 }
 
 export interface Lap {
@@ -49,6 +51,7 @@ export interface SessionSummary extends SessionListItem {
   fastest_lap: string;
   valid_lap_count: number;
   consistency_stdev_ms: number;
+  gap_to_optimal_ms: number | null;
   prior_session_id: number | null;
   corner_deltas: CornerDelta[];
 }
