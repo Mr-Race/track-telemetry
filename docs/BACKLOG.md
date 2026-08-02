@@ -29,6 +29,11 @@
   pruning, or format conversion before upload is not — derived or
   columnar artifacts are generated server-side, never in place of
   the original.
+- **Personal location data (decided 2026-08-02).** Sessions are GPS
+  traces tied to a named driver, a car, and a timestamp — sensitive
+  personal data, not just lap times. Security, retention, and
+  sharing decisions are made on that basis. See
+  `docs/specs/security-review.md`.
 
 ## Versioning (decided 2026-07-24)
 Semver-style product versioning:
@@ -38,7 +43,9 @@ Semver-style product versioning:
 - **1.0:** declared when the v1.0 scope below is complete — core
   loop finished (drive -> auto-ingest -> enriched analysis ->
   review), no known broken pieces in prod, all endpoints secured,
-  docs baseline exists. From 1.0 on, breaking changes cost.
+  docs baseline exists, and both pre-launch reviews (engineering
+  practices, information security) are complete with no open
+  high-severity findings. From 1.0 on, breaking changes cost.
 - **1.x:** additive, backward-compatible features (1.1, 1.2...);
   fixes are 1.0.1-style patches.
 - **2.0:** reserved for breaking/identity-level change — for this
@@ -51,15 +58,43 @@ every release, version number shown in the dashboard footer.
 ## v1.0 — finish to launch
 The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
-plus the docs baseline. Nothing else blocks 1.0.
+plus the docs baseline and the two pre-launch reviews. Nothing else
+blocks 1.0.
 - [ ] **Backfill historical sessions** — upload all pre-existing
       RaceChrono CSVs (before the ingest Function/Shortcut existed)
       through the same /api/ingest path so past track days show up
       alongside new ones. Run AFTER weather + segment times land, so
       one re-ingest pass populates everything (weather, segments,
       OBD corner metrics) for the whole history.
+- [ ] **Information security due diligence** — SPEC:
+      `docs/specs/security-review.md` (scoped 2026-08-02). Full
+      review before 1.0, and before multi-user makes every weakness
+      someone else's problem too: secrets swept across the whole git
+      history (including the known real Azure Maps client ID in
+      `local.settings.json.example`), auth and scope enforcement,
+      the function-key model on ingest, data classification and
+      retention for personal GPS traces, network posture (open
+      storage account, no APIM, CORS), dependency CVEs, and
+      client-side token handling. Produces a one-page threat model
+      plus a severity-rated findings log; high-severity findings
+      block 1.0. SEQUENCING: run this BEFORE the MCP OAuth item
+      below, so the review shapes that work rather than reviewing
+      freshly written code.
 - [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
-      the last unauthenticated endpoint.
+      the last unauthenticated endpoint. Do this after the security
+      review above.
+- [ ] **Engineering practices assessment** — SPEC:
+      `docs/specs/engineering-review.md` (scoped 2026-08-02). Honest
+      review of everything written and deployed: automated testing
+      (currently none — the parser, lap validity, corner metrics,
+      event resolution, and weather parsing are the high-value
+      targets), CI/CD to replace hand-run deploys and encode the
+      verification steps currently held in memory, migration
+      discipline for `sql/*.sql`, a dependency pinning policy (per
+      the `mcp` crash-loop lesson), `ingest/` module structure,
+      error handling and observability, and docs currency. Produces
+      a severity-rated findings log; high-severity findings block
+      1.0, the rest become v1.x issues.
 - [ ] **Docs baseline (living documentation v1)** — technical +
       business doc sets as docs-as-code in the repo
       (docs/technical/, docs/business/), updated in the same commits
@@ -196,7 +231,25 @@ identity-level scope; design as one coherent release.
       speeds; ghost comparisons against friends' laps. MAJOR scope:
       per-user data ownership on sessions/laps and sharing
       permissions on top of the existing Entra External ID +
-      driver_id foundation (schema prep done 2026-07-23).
+      driver_id foundation (schema prep done 2026-07-23). Re-run the
+      security review before this ships — multi-user changes the
+      trust model fundamentally.
+
+## v3 — parked ideas (not scheduled)
+- [ ] **iRacing telemetry ingestion** (parked 2026-08-02) — iRacing
+      writes `.ibt` telemetry files that `pyirsdk` can read offline,
+      carrying `Brake`, `Throttle`, `SteeringWheelAngle`, `Gear`,
+      `RPM`, `Speed`, and `LapDistPct` at ~60Hz — i.e. the driver-input
+      channels the real-world side can't reach without a CAN
+      reverse-engineering project, plus exact normalized lap distance
+      that would make segment gating trivial. Deliberately NOT v1.x or
+      v2.0: sim and real-world serve different purposes and folding
+      them together would muddy what the platform is for. If it's ever
+      built, it's a second ingest adapter behind the same schema, and
+      the open questions are whether `.ibt` lat/lon are real-world
+      coordinates that match existing corner apex zones (if not, key
+      corners off `LapDistPct` instead) and whether sim and real
+      sessions share tables at all.
 
 ## Weekend 2 (complete)
 - [x] HTTP-triggered Azure Function: POST /api/ingest (parser wrapped
@@ -236,6 +289,19 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-02 — Specs written for the two pre-launch reviews AC
+      called for before declaring v1.0: `docs/specs/engineering-review.md`
+      (testing, CI/CD, migrations, dependency policy, module
+      structure, error handling/observability, docs currency) and
+      `docs/specs/security-review.md` (secrets across git history,
+      auth/scope enforcement, the ingest function-key model, personal
+      location data classification and retention, network posture,
+      dependency CVEs, client-side token handling). Both follow the
+      event-summary-page precedent: the spec doc holds scope, method,
+      and a findings log; the backlog carries a pointer. Both added to
+      v1.0 scope, with the security review sequenced ahead of the MCP
+      OAuth work. Also recorded the personal-location-data guiding
+      principle and parked iRacing ingestion under a new v3 section.
 - [x] 2026-08-02 — Dashboard: optimal lap time per session (v1.0
       item). `ingest/queries.py` gains `optimal_lap_ms()` (sums each
       segment_order's best `segment_time_ms` across a session's valid
