@@ -60,6 +60,33 @@ The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline and the two pre-launch reviews. Nothing else
 blocks 1.0.
+- [ ] **Fix session start_time timezone bug** (found 2026-08-03 via the
+      new event summary page - session times displayed as 9-11 PM for
+      what were actually normal 5-7 PM track sessions). Root cause:
+      `racechrono_parser.py`'s `load()`/`refresh()` compute
+      `start_time = datetime.fromtimestamp(samples[0]["ts"],
+      tz=timezone.utc)` and store that directly into the
+      timezone-naive `sessions.start_time DATETIME2(0)` column; the
+      dashboard then displays it as if it were already local, so every
+      session's displayed time is off by the local UTC offset (NJMP is
+      `America/New_York`, UTC-4 in summer - 21:00 stored is really
+      5:00 PM EDT). SPEC'd fix, not yet applied (deferred by request,
+      2026-08-03): (1) migration
+      `sql/17_track_timezone.sql` (drafted, not run) - adds
+      `dbo.tracks.iana_timezone`, backfills all 3 NJMP rows to
+      `'America/New_York'` (small manually-curated table, same pattern
+      as corners/run_groups, so a plain per-track IANA name is simpler
+      than a geospatial timezone lookup); (2) code fix in
+      `racechrono_parser.py` - convert to the track's zone via stdlib
+      `zoneinfo` (no new dependency, keeps the file's stdlib-only
+      parsing property) before storing, instead of raw UTC; (3)
+      one-time data correction for sessions already in the DB -
+      deterministic UPDATE converting each existing (wrong,
+      UTC-labeled-as-naive) `start_time` to local via its track's
+      timezone, no CSV re-ingest needed since the bug's behavior is
+      fully known. `session_date` is unaffected - it's parsed
+      independently from the CSV's own `Created` metadata field, not
+      from the UTC sample timestamp.
 - [ ] **Backfill historical sessions** — the refresh-in-place
       `--backfill` CLI mode exists now (see Done, 2026-08-03) and has
       been run against the two historical CSVs already in `data/`
