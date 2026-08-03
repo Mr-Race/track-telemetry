@@ -9,3 +9,7 @@ python-tds
 # pyOpenSSL 26.2 - pin below that until pytds updates to pyca/cryptography.
 pyOpenSSL<26.2
 certifi
+# floor, not a full pin: GHSA-537c-gmf6-5ccf (statically-linked vulnerable
+# OpenSSL in the wheel, CVSS 7.5) is fixed in 48.0.1 - found via pip-audit
+# during the 2026-08-03 security review (docs/specs/security-review.md).
+cryptography>=48.0.1

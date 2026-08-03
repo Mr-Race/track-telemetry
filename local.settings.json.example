@@ -3,9 +3,9 @@
   "Values": {
     "AzureWebJobsStorage": "",
     "FUNCTIONS_WORKER_RUNTIME": "python",
-    "SQL_SERVER": "track-telemetry.database.windows.net",
-    "SQL_DATABASE": "free-sql-db-7848405",
-    "STORAGE_ACCOUNT_URL": "https://racechronoraw.blob.core.windows.net",
-    "MAPS_CLIENT_ID": "ec839a5c-896e-4ba0-8dd2-d95da8550d0e"
+    "SQL_SERVER": "your-sql-server.database.windows.net",
+    "SQL_DATABASE": "your-database-name",
+    "STORAGE_ACCOUNT_URL": "https://yourstorageaccount.blob.core.windows.net",
+    "MAPS_CLIENT_ID": "00000000-0000-0000-0000-000000000000"
   }
 }

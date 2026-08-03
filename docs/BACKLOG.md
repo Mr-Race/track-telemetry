@@ -68,19 +68,20 @@ blocks 1.0.
       need to land in `data/` before `--backfill` can be run against
       them too.
 - [ ] **Information security due diligence** — SPEC:
-      `docs/specs/security-review.md` (scoped 2026-08-02). Full
-      review before 1.0, and before multi-user makes every weakness
-      someone else's problem too: secrets swept across the whole git
-      history (including the known real Azure Maps client ID in
-      `local.settings.json.example`), auth and scope enforcement,
-      the function-key model on ingest, data classification and
-      retention for personal GPS traces, network posture (open
-      storage account, no APIM, CORS), dependency CVEs, and
-      client-side token handling. Produces a one-page threat model
-      plus a severity-rated findings log; high-severity findings
-      block 1.0. SEQUENCING: run this BEFORE the MCP OAuth item
-      below, so the review shapes that work rather than reviewing
-      freshly written code.
+      `docs/specs/security-review.md` (scoped 2026-08-02, review
+      completed 2026-08-03 - see Done below). 3 remaining items
+      before this can close: (1) restrict the CIAM `SignUpSignIn`
+      user flow to invite-only / disable self-service sign-up (Entra
+      portal change, needs you - any self-registered account
+      currently gets full read/write access to all telemetry, since
+      `driver_id` exists but is never used for authorization); (2)
+      confirm the `cryptography>=48.0.1` CVE fix and the new
+      `scp`-claim check in `ingest/api_auth.py` are actually deployed
+      (redeploy the Function App + MCP Container App, verify a real
+      sign-in still works before trusting the scope check); (3)
+      redeploy the dashboard with the new CSP headers and manually
+      confirm sign-in/API calls/satellite images still work. The MCP
+      OAuth item below remains its own separately-tracked follow-up.
 - [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
       the last unauthenticated endpoint. Do this after the security
       review above.
@@ -303,6 +304,64 @@ identity-level scope; design as one coherent release.
       v1.0 scope, with the security review sequenced ahead of the MCP
       OAuth work. Also recorded the personal-location-data guiding
       principle and parked iRacing ingestion under a new v3 section.
+- [x] 2026-08-03 — Information security due diligence review (v1.0
+      item, partially - 2 items need your action, see still-open entry
+      above). Full findings log + one-page threat model written into
+      `docs/specs/security-review.md`, verified against deployed
+      Azure/GitHub state rather than docs/intent - firewall rules,
+      RBAC role assignments (`az role assignment list`), SQL database
+      principals and role memberships (queried live), Function App
+      CORS config, Container App ingress config, Storage account
+      network/encryption settings, actual HTTP response headers
+      (`curl -I` against the live SWA), `pip-audit`/`npm audit`, and a
+      full-git-history grep for common secret patterns. 13 findings
+      logged (3 High, 2 Medium, 3 Low, 1 accepted-risk, 4
+      Informational). Fixed directly during the review, low-risk and
+      already verified: dropped an orphaned, undocumented
+      SQL-authenticated database user `mcp_reader` (created
+      2026-07-03, `db_datareader`, predates the MCP server's
+      managed-identity setup, currently inert only because
+      `azureADOnlyAuthentication=true` blocks all SQL/password
+      logins - confirmed against Microsoft Learn); replaced the real
+      Azure Maps client ID and real SQL/storage resource names in
+      `local.settings.json.example` with placeholders (repo confirmed
+      **private** via the GitHub API, so this was hygiene, not a live
+      leak). Fixed in source, needs a deploy to take effect live:
+      `cryptography>=48.0.1` floor added to both requirements files
+      (`pip-audit` found GHSA-537c-gmf6-5ccf, CVSS 7.5, in the
+      transitive `PyJWT[crypto]`/`python-tds` chain); explicit `scp`
+      claim check added to `ingest/api_auth.py`'s
+      `validate_bearer_token()` (it verified signature/audience/
+      issuer/expiry correctly but never actually checked the token
+      carried the `access_as_user` delegated scope); CSP + X-Frame-
+      Options added to `dashboard/staticwebapp.config.json` (SWA's
+      platform defaults already covered HSTS/nosniff/referrer-policy,
+      confirmed live via `curl -I`, but nothing restricted script
+      sources or framing, and MSAL caches tokens in `localStorage`).
+      Biggest finding, NOT fixed here: `driver_id` exists on
+      `dbo.sessions` (added Block 5) but is never used for
+      authorization anywhere in `ingest/queries.py`/`function_app.py`
+      - combined with the CIAM `SignUpSignIn` flow allowing
+      self-service email+password registration, any account someone
+      creates gets full read/write access to all personal telemetry.
+      Low exploitability today only because the dashboard URL isn't
+      published anywhere; the v1.0 docs-baseline/portfolio item risks
+      publishing exactly that URL. Tried to fix the CIAM user-flow
+      restriction directly via Graph API (same pattern as the earlier
+      Block 5 work) but hit `AADSTS530035` requiring interactive
+      device-code sign-in for that tenant - needs you. Also confirmed
+      clean, no action needed: managed-identity story holds
+      end-to-end against deployed reality (not just `sql/*.sql`
+      intent) - Function App MI has exactly `Storage Blob Data
+      Contributor` scoped to `racechronoraw` + `Azure Maps Data
+      Reader` scoped to `maps-track-telemetry` + SQL
+      `db_datareader`/`db_datawriter`; MCP Container App MI has SQL
+      `db_datareader` only; `@require_auth` present on all 13
+      read/write routes (enumerated every route in `function_app.py`);
+      no DB connection happens before token validation; CORS scoped
+      to exactly the SWA origin; SQL server is Entra-only auth with
+      TLS 1.2 minimum; full git-history secret grep found nothing
+      beyond the already-known/now-fixed Maps client ID.
 - [x] 2026-08-03 — Backfill tooling: refresh-in-place re-ingest for
       historical sessions (v1.0 item, partially - see still-open entry
       above for remaining CSVs). Problem: the two pre-automation

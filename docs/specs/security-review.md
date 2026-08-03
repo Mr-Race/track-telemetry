@@ -1,6 +1,12 @@
 # Spec: Information Security Due Diligence (pre-v1.0)
 
-Status: scoped 2026-08-02 per AC. Gate on the v1.0 release.
+Status: scoped 2026-08-02 per AC. Review completed 2026-08-03 - see
+Findings below. 3 High-severity findings: #1 (MCP auth) is already a
+separately tracked v1.0 backlog item running next by design; #2
+(CIAM self-service sign-up + unused driver_id) needs an Entra portal
+change only you can make; #3 (cryptography CVE) is fixed in source
+but needs a redeploy to take effect live. **Not yet clear to declare
+1.0** until #2 is resolved and #3's fix is confirmed deployed.
 
 ## Purpose
 A full security review of the platform before it's declared 1.0 and
@@ -96,11 +102,84 @@ times.
    trust model fundamentally.
 
 ## Threat model
-_To be completed during the review._
+_Completed 2026-08-03._
+
+**Assets:** personal GPS telemetry (raw CSVs in Blob; parsed
+laps/corner_metrics/segment_times/weather in Azure SQL), tied to a
+named driver, car, and timestamp; the ingest function key; dashboard
+bearer tokens (MSAL, `localStorage`); Azure infrastructure
+credentials (managed identities, CIAM tenant config); availability of
+the free-tier services themselves.
+
+**Actors:** the owner/driver (sole legitimate user today); anyone who
+discovers the MCP server's public FQDN (read access, no auth
+required); anyone who discovers the dashboard URL and self-registers
+via the CIAM `SignUpSignIn` flow (authenticated but not
+intentionally-authorized access); anyone who obtains the ingest
+function key (write/data-poisoning access); the PyPI/npm supply
+chain (unpinned deps); GitHub collaborators (repo is private, so
+bounded).
+
+**Entry points:** Function App `/api/*` (JWT-gated, except
+function-key-gated `/api/ingest`); MCP Container App (Streamable
+HTTP, currently no auth at all); Static Web App (public static
+assets + client-side route gating); the CIAM sign-up/sign-in flow;
+the iOS Shortcut's URL-embedded function key; the private git
+repository and its full history.
+
+**Trust boundaries:** Internet ↔ Function App is JWT-gated for reads
+and the one write route, function-key-gated for ingest. Internet ↔
+MCP Container App has **no boundary** - flat, unauthenticated.
+Internet ↔ Static Web App is public by design (static assets), with
+auth enforced client-side plus server-side on the API it calls.
+Function App / MCP App ↔ Azure SQL is managed-identity only,
+scoped to `db_datareader`(+`db_datawriter` for the Function App) -
+confirmed against deployed reality, not just `sql/*.sql` intent.
+Function App ↔ Blob Storage and ↔ Azure Maps are managed-identity
+only, each scoped to the single resource they need (confirmed via
+`az role assignment list`, not assumed). Browser ↔ CIAM tenant is
+standard OIDC.
 
 ## Findings
-_To be completed during the review._
+_Completed 2026-08-03. Live-verified against deployed Azure/GitHub
+state, not just code/docs, per the method above._
 
 | # | Area | Severity | Finding | Exploitability | Fix | Status |
 |---|------|----------|---------|----------------|-----|--------|
-|   |      |          |         |                |     |        |
+| 1 | AuthN/AuthZ | High | MCP server (`ca-track-telemetry-mcp`) has zero authentication and public ingress (`external: true`, no IP restrictions, no client cert, no Container Apps auth config) - any of the 4 MCP tools can be called by anyone who has the FQDN, returning every session's GPS-tied telemetry. | Only requires discovering the FQDN; no credential needed at all. | OAuth 2.1 + PKCE via Entra - already its own tracked v1.0 backlog item, deliberately sequenced to run right after this review so the review shapes it. | Tracked (v1.0 backlog item, not fixed in this pass) |
+| 2 | AuthN/AuthZ | High | Dashboard/API authorization is "any valid CIAM login," not "the owner." `dbo.sessions.driver_id` exists (added Block 5) but is never referenced in `ingest/queries.py` or `function_app.py`; the CIAM `SignUpSignIn` flow allows self-service email+password registration. Any self-registered account gets full read of all telemetry plus write access (create_event, create_car, session PATCH). | Bounded today by the dashboard URL not being published anywhere. The planned v1.0 docs-baseline/portfolio site risks publishing that exact URL, which flips this from obscure to trivially discoverable. | Immediate: restrict the CIAM user flow to invite-only / disable self-service sign-up. Durable: driver_id-scoped authorization before v2.0 multi-user. | **Needs your action** - requires an Entra portal change; I hit an interactive-auth wall trying to inspect/change the CIAM user flow non-interactively from this environment (`AADSTS530035`, needs `az login` device-code sign-in for the CIAM tenant). |
+| 3 | Dependencies | High (CVSS 7.5) | `cryptography` 47.0.0 (pulled transitively via `PyJWT[crypto]`/`python-tds`) carries GHSA-537c-gmf6-5ccf - a statically-linked vulnerable OpenSSL, network-exploitable, no auth required. Fixed in 48.0.1; found via `pip-audit` against both `requirements.txt` and `mcp_server/requirements.txt`. Neither file pinned a floor. | Network attack vector, no privileges/user interaction required (per the GHSA). | Added `cryptography>=48.0.1` floor to both requirements files. | **Fixed** - needs a redeploy of both the Function App and the MCP Container App to take effect live. |
+| 4 | Secrets | Medium | Orphaned SQL-authenticated database user `mcp_reader` (created 2026-07-03, `db_datareader`, password auth) existed in `free-sql-db-7848405`, undocumented in any `sql/*.sql` migration or project memory - predates the MCP server's managed-identity setup and was never cleaned up. Inert only because `azureADOnlyAuthentication=true` blocks all SQL/password logins server-wide (confirmed against Microsoft Learn - that setting does cover contained DB users, not just server logins). | None today (blocked by Entra-only auth), but becomes a live, unaccounted-for credential of unknown provenance/strength the moment that setting is ever toggled off for any reason (troubleshooting, misconfiguration). | `DROP USER mcp_reader`. | **Fixed** - dropped directly against live prod DB, verified removed. |
+| 5 | Client-side | Medium | No CSP or `X-Frame-Options` on the Static Web App (`staticwebapp.config.json` only set `navigationFallback`). Azure SWA does apply good defaults - confirmed live via `curl -I` (HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `X-XSS-Protection` all present) - but nothing restricts script sources or framing. Combined with MSAL's `cacheLocation: "localStorage"` (bearer tokens readable by any script on the page, persist cross-tab), an XSS or clickjacking bug would have a full token-theft blast radius. | Requires a separate XSS/clickjacking bug to actually exploit - this finding is about blast-radius reduction, not a standalone hole. | Added a `globalHeaders` CSP (`frame-ancestors 'none'`, scoped `connect-src` to the Function App + CIAM authority, no `unsafe-eval`) and `X-Frame-Options: DENY` to `staticwebapp.config.json`. | **Fixed in source** - needs `npm run build` + SWA CLI redeploy, then a manual browser check (sign-in, API calls, satellite images all still work) before it's live - not automatable here per this project's existing verification pattern for interactive Entra sign-in. |
+| 6 | AuthN/AuthZ | Low | `ingest/api_auth.py` validated signature/audience/issuer/expiry correctly but never checked the token's `scp` claim actually contains `access_as_user` - any token this API's JWKS could verify for the right audience would pass, not just ones that consented to that specific delegated scope. | Low in practice (Entra typically only issues audience-matching tokens for scopes actually consented to), but the spec explicitly asked to verify scope enforcement is real, not assumed - and it wasn't being checked at all. | Added an explicit `scp` claim check (`REQUIRED_SCOPE = "access_as_user"`) in `validate_bearer_token()`. | **Fixed in source** - needs a Function App redeploy + a real authenticated request to confirm the `scp` claim shape assumption holds for this CIAM tenant before trusting it live (getting this wrong could lock out legitimate sign-in, so verify before relying on it). |
+| 7 | Secrets | Low | Real Azure Maps client ID and real SQL server/database/storage resource names were hardcoded in the git-tracked `local.settings.json.example` (the pre-existing known item from an earlier manual review). Not credentials - Maps auth is AAD-token-based, no key exposed - and the repo is confirmed **private** (checked via GitHub API), so exploitability was already low, but it's real-resource disclosure in a file literally named `.example`. | Low (private repo; disclosure aids reconnaissance at most, not direct access). | Replaced with placeholder values. | **Fixed.** |
+| 8 | Network posture | Low | Storage account `racechronoraw` network default action is `Allow` (open to all networks). Blob public access is separately disabled at the account level (`allowBlobPublicAccess: false`), so this isn't public data exposure - just unrestricted network reachability for authenticated (managed-identity) calls. | Low - still requires a valid Azure AD token with the right RBAC role; network openness alone grants nothing. | Already tracked as its own v1.x backlog item ("Lock storage account networking to selected networks"). | Already tracked, no new action here. |
+| 9 | Data protection | Low | No Blob lifecycle/retention policy - raw CSVs (personal GPS traces) are retained indefinitely with no automated deletion path. Consistent with the "raw data is sacred" guiding principle (System of Record), so likely intentional, but was an unexamined default rather than a documented decision. | N/A - this is a policy gap, not a technical exploit. | **Decision, recorded here per the "Personal location data" principle's pointer to this doc:** retention is intentionally indefinite - the archived CSV is the system of record and there is currently no deletion path, by design, not oversight. Revisit if/when a driver ever wants their data removed (relevant before v2.0 multi-user, where "delete my data" becomes someone else's request, not just a hypothetical). | Documented; no infra change. |
+| 10 | AuthN/AuthZ | Low (accepted risk) | `/api/ingest`'s function key travels as a URL query parameter embedded in an iOS Shortcut (iCloud-synced if Shortcuts sync is on). Correctly scoped to a **per-function** key (not the host master key, confirmed via `docs/ios_shortcut.md`'s `--function-name ingest`), limiting blast radius to "write arbitrary sessions" (dataset poisoning) rather than broader Function App control. | Requires the key to leak first (device compromise, iCloud account compromise, or shoulder-surfing the Shortcut). Worst case is data poisoning, not data disclosure or infra compromise. | Accepted for a single-user personal project. Revisit rotation cadence or a header-based secret if this ever becomes multi-device/multi-user. | Accepted risk, documented. |
+| 11 | Dependencies | Informational | `react-router`/`react-router-dom` have 2 high-severity npm advisories (GHSA-qwww-vcr4-c8h2, RSC-mode CSRF bypass) per `npm audit`. | Not exploitable in this app - the dashboard is a client-only Vite SPA using client-side routing only; it doesn't use React Server Components or server actions, which is the vulnerable code path. | None needed now; note for the next routine dependency bump (current fix requires a breaking downgrade per `npm audit fix --force`, not worth forcing for an inapplicable CVE). | No action needed. |
+| 12 | Dependencies/Supply chain | Informational | Could not verify GitHub secret scanning / push protection / Dependabot alert status from this environment - no `gh` CLI available, and the connected GitHub MCP server doesn't expose repo `security_and_analysis` settings. | N/A | Manually check/enable under repo Settings -> Code security. | **Needs your action** - can't verify or enable from here. |
+| 13 | Network posture | Informational | No API Management / rate limiting in front of `/api/ingest`. | Requires the function key to already be known (see #10). | Already tracked as its own v1.0 item ("API Management in front of the ingest endpoint"). | Already tracked, no new action here. |
+
+**Confirmed clean (no finding):** full git-history secret sweep (common
+credential patterns - AWS/GitHub/Google/Slack keys, connection
+strings, PEM blocks - found nothing beyond the resource-identifier
+disclosure in #7); managed-identity story holds against deployed
+reality (Function App MI has `Storage Blob Data Contributor` scoped
+to `racechronoraw` only + `Azure Maps Data Reader` scoped to
+`maps-track-telemetry` only + SQL `db_datareader`/`db_datawriter`;
+MCP Container App MI has SQL `db_datareader` only; no broader RBAC
+grants on either); `@require_auth` present on every read/write route
+except the intentionally function-key-gated `/api/ingest`
+(enumerated all 14 routes in `function_app.py`); no handler touches
+the DB before token validation; CORS on the Function App restricts to
+exactly the SWA origin, credentials not included; Azure SQL server is
+Entra-only auth with TLS 1.2 minimum; MSAL token refresh uses the
+correct `acquireTokenSilent` -> `acquireTokenRedirect` fallback
+pattern; no secrets found in the built dashboard JS bundle (Vite only
+inlines `VITE_`-prefixed vars, all of which are intentionally-public
+SPA values).
+
+**Deferred to next review pass (not high-severity, don't block 1.0):**
+re-run this whole review before v2.0 multi-user, since driver-scoped
+authorization (finding #2's durable fix) changes the trust model
+fundamentally, not just incrementally.

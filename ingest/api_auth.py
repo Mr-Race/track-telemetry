@@ -28,6 +28,9 @@ class AuthError(Exception):
     pass
 
 
+REQUIRED_SCOPE = "access_as_user"
+
+
 def validate_bearer_token(auth_header):
     if not auth_header or not auth_header.startswith("Bearer "):
         raise AuthError("missing bearer token")
@@ -35,11 +38,21 @@ def validate_bearer_token(auth_header):
     token = auth_header[len("Bearer "):]
     try:
         signing_key = _jwks_client.get_signing_key_from_jwt(token).key
-        return jwt.decode(
+        claims = jwt.decode(
             token, signing_key, algorithms=["RS256"],
             audience=CLIENT_ID, issuer=ISSUER)
     except jwt.PyJWTError as exc:
         raise AuthError(f"invalid token: {exc}") from exc
+
+    # aud/iss/signature only prove "a token this API's JWKS can verify" -
+    # without this, any token scoped to this app registration for any
+    # reason would pass, not just ones that actually consented to
+    # access_as_user. Delegated scopes land in "scp" as a space-separated
+    # string (not a list, per the v2.0 token spec).
+    if REQUIRED_SCOPE not in claims.get("scp", "").split():
+        raise AuthError(f"token missing required scope: {REQUIRED_SCOPE}")
+
+    return claims
 
 
 def require_auth(fn):

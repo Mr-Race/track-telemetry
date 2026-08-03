@@ -2,5 +2,9 @@
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": ["/api/*", "/assets/*", "/favicon.svg"]
+  },
+  "globalHeaders": {
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://func-track-telemetry-ingest.azurewebsites.net https://tracktelemetry.ciamlogin.com https://cc8e128a-ad5b-49af-a3ce-35e7c3c3e30c.ciamlogin.com; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'",
+    "X-Frame-Options": "DENY"
   }
 }
