@@ -81,11 +81,13 @@ blocks 1.0.
       live-incident this caused); real fix needs `python-tds` off
       `X509.get_extension()` first, handed to the engineering review's
       dependency-pinning-policy item; (3) the `scp`-claim check in
-      `ingest/api_auth.py` is deployed (Function App redeployed
-      2026-08-03) but not yet verified against a real interactive
-      sign-in - do that before trusting it; (4) redeploy the dashboard
-      with the new CSP headers and manually confirm sign-in/API
-      calls/satellite images still work. The MCP OAuth item below
+      `ingest/api_auth.py` and the dashboard's new CSP headers are
+      both deployed (Function App + dashboard redeployed 2026-08-03,
+      headers/routes/assets all confirmed live via `curl`) but neither
+      has been verified against a **real interactive sign-in** yet -
+      do that next, since a bad `scp` assumption or an overly-strict
+      CSP directive could each lock out legitimate sign-in and only a
+      real browser test would catch it. The MCP OAuth item below
       remains its own separately-tracked follow-up.
 - [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
       the last unauthenticated endpoint. Do this after the security
@@ -296,6 +298,26 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-03 — Redeployed the dashboard (`swa-track-telemetry-dashboard`)
+      to pick up the security review's CSP + `X-Frame-Options` headers.
+      `npm run build` then the standard SWA CLI deploy
+      (`docs/BACKLOG.md`'s documented command with the live deployment
+      token). Verified via `curl -I` against the live URL: both new
+      headers present with the exact policy from
+      `staticwebapp.config.json` (`connect-src` scoped to the Function
+      App + both CIAM authority hosts, `frame-ancestors 'none'`); also
+      confirmed the page shell, JS bundle, CSS, and favicon all still
+      load (200s, all same-origin, satisfying `script-src`/`style-src`/
+      `img-src 'self'`). Checked `index.html` and `dashboard/src/**`
+      for any external resource references (CDN scripts, web fonts)
+      before deploying, to rule out the new CSP breaking something
+      silently - found none. **Not verified**: the actual interactive
+      sign-in flow through the CIAM redirect, silent token renewal,
+      and authenticated API calls - not automatable here, and this
+      matters more than usual right now since the same day's Function
+      App redeploy also carries an unverified `scp`-claim check on the
+      backend this talks to. Needs a real browser check before this
+      backlog item can close.
 - [x] 2026-08-03 — Redeployed the Function App and MCP Container App
       to pick up the security review's in-source fixes, and hit (then
       fixed) a real production incident along the way. The
