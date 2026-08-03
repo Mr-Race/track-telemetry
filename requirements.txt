@@ -3,16 +3,12 @@ azure-identity
 azure-storage-blob
 python-tds
 PyJWT[crypto]
-# pytds's TLS hostname check still calls X509.get_extension(), removed in
-# pyOpenSSL 26.2 - pin below that until pytds updates to pyca/cryptography.
-pyOpenSSL<26.2
+# pytds's TLS hostname check used to call X509.get_extension(), removed
+# in pyOpenSSL 26.2 - ingest/_pytds_tls_compat.py monkeypatches that
+# check to use `cryptography` directly instead, so pyOpenSSL/cryptography
+# are free to float and pick up the GHSA-537c-gmf6-5ccf fix
+# (cryptography>=48.0.1). See docs/specs/security-review.md finding #3
+# for the live-incident this pin previously caused.
+pyOpenSSL>=26.2
+cryptography>=48.0.1
 certifi
-# GHSA-537c-gmf6-5ccf (cryptography<48.0.1, CVSS 7.5) can't be fixed with
-# a simple floor here: every pyOpenSSL<26.2 release caps cryptography
-# below 48 (26.1.0 itself requires <48,>=46), so cryptography>=48.0.1
-# and pyOpenSSL<26.2 are mutually unsatisfiable - pip silently
-# backtracks to an ancient, incompatible pyOpenSSL instead of erroring,
-# which crashes the whole app at import time (found the hard way via a
-# live redeploy - see docs/specs/security-review.md finding #3).
-# Needs the pytds X509.get_extension() replacement before this CVE can
-# actually be fixed; tracked in the engineering review.

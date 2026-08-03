@@ -13,6 +13,8 @@ import pytds
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
+from ingest import _pytds_tls_compat  # noqa: F401 - patches pytds.tls.validate_host on import
+
 SQL_SCOPE = "https://database.windows.net/.default"
 
 # The free-tier serverless DB auto-pauses after inactivity; the first

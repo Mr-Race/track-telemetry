@@ -67,26 +67,10 @@ blocks 1.0.
       CSVs exist outside this devcontainer (phone/laptop) and still
       need to land in `data/` before `--backfill` can be run against
       them too.
-- [ ] **Information security due diligence** — SPEC:
-      `docs/specs/security-review.md` (scoped 2026-08-02, review
-      completed 2026-08-03 - see Done below). Remaining items before
-      this can close: (1) restrict the CIAM `SignUpSignIn` user flow
-      to invite-only / disable self-service sign-up is done
-      (2026-08-03, see Done below) - `isSignUpAllowed` is now `false`
-      on that flow; (2) the
-      `cryptography` CVE (GHSA-537c-gmf6-5ccf) turned out to be
-      **not fixable** with a simple version floor - it conflicts with
-      the existing `pyOpenSSL<26.2` pin (see Done below for the
-      live-incident this caused); real fix needs `python-tds` off
-      `X509.get_extension()` first, handed to the engineering review's
-      dependency-pinning-policy item. (3) real interactive sign-in
-      verification against prod is done (2026-08-03, see Done below)
-      - the `scp` check and CSP headers don't lock out legitimate
-      sign-in. The MCP OAuth item below remains its own
-      separately-tracked follow-up.
 - [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
-      the last unauthenticated endpoint. Do this after the security
-      review above.
+      the last unauthenticated endpoint. The information security due
+      diligence item is now fully closed (2026-08-03, see Done below),
+      so this is unblocked.
 - [ ] **Engineering practices assessment** — SPEC:
       `docs/specs/engineering-review.md` (scoped 2026-08-02). Honest
       review of everything written and deployed: automated testing
@@ -1013,3 +997,39 @@ identity-level scope; design as one coherent release.
       verified `isSignUpAllowed: false` on a follow-up GET. Script at
       `patch-signup-flow.sh` (scratchpad, not committed - takes
       `GRAPH_TOKEN` as an env var, no token persisted to disk).
+- [x] 2026-08-03 — Fixed GHSA-537c-gmf6-5ccf (`cryptography<48.0.1`,
+      CVSS 7.5), closing item (2) of the security-review follow-ups.
+      The real blocker was pytds's own TLS hostname check
+      (`pytds/tls.py`'s `validate_host`), which calls the pyOpenSSL
+      `X509.get_extension()`/`get_extension_count()` methods that
+      pyOpenSSL 26.2 removed - hence the `pyOpenSSL<26.2` pin, which in
+      turn capped `cryptography` below the fixed version. Added
+      `ingest/_pytds_tls_compat.py`, which monkeypatches
+      `pytds.tls.validate_host` at import time (via `cloud.py`) to do
+      the same CN/SAN hostname check using `cert.to_cryptography()` and
+      the `cryptography` library's own `x509` API instead of the
+      removed pyOpenSSL methods - no pytds source touched, since
+      `establish_channel` looks up `validate_host` as a module global
+      at call time. `requirements.txt` and `mcp_server/requirements.txt`
+      now read `pyOpenSSL>=26.2` / `cryptography>=48.0.1` instead of the
+      old pin. Verified for real, not just by type-checking: installed
+      the upgraded packages (`pyOpenSSL` 26.4.0, `cryptography` 50.0.0)
+      in a throwaway venv and connected to the live
+      `track-telemetry.database.windows.net` DB through
+      `get_cloud_connection()`, running a real query successfully;
+      also confirmed the patch is load-bearing by running the same
+      connection *without* importing the compat shim, which reproduced
+      the exact expected crash
+      (`AttributeError: 'X509' object has no attribute 'get_extension'`).
+      Upgraded the project's own `.venv` to the same versions and
+      re-verified there too. `ingest/api_auth.py` and
+      `mcp_server/server.py` weren't exercised end-to-end here (need
+      `MSAL_TENANT_ID` and the separately-installed `mcp` package,
+      respectively) - unrelated to this change, since both failed
+      before reaching any pytds/TLS code.
+- [x] 2026-08-03 — Closed the "Information security due diligence" v1.0
+      item: all three remaining sub-items are done (self-service
+      sign-up disabled, the `cryptography` CVE fixed, real interactive
+      sign-in verified - see the three entries above). OAuth 2.1/PKCE
+      on the MCP server remains open as its own separately-tracked
+      v1.0 item, now unblocked.
