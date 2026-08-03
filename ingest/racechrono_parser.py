@@ -360,6 +360,19 @@ def next_session_number(cnx, event_id):
     return cur.fetchone()[0]
 
 
+def find_existing_session(cnx, event_id, source_filename):
+    """Session already loaded from this exact source file, if any - lets
+    a historical CSV be re-ingested in place (see refresh()) instead of
+    creating a duplicate row when backfilling."""
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT session_id FROM dbo.sessions
+        WHERE event_id = ? AND source_file = ?""",
+        event_id, source_filename)
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
 def fetch_session_weather(cnx, event_id, start_time):
     """Best-effort weather lookup via Open-Meteo, keyed on the event's
     track location (corner apex centroid) and the session's start
@@ -382,26 +395,9 @@ def fetch_session_weather(cnx, event_id, start_time):
         return weather.EMPTY
 
 
-def load(cnx, event_id, session_number, source_filename, meta, samples,
-         laps, metrics, car_id=None, segments=None):
-    session_date = parse_session_date(meta)
-    start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
-    w = fetch_session_weather(cnx, event_id, start_time)
-
-    cur = cnx.cursor()
-    cur.execute("""
-        INSERT INTO dbo.sessions
-            (event_id, session_number, session_date, start_time,
-             source_file, car_id, weather, air_temp_f, humidity_pct,
-             wind_mph, precip_in, weather_observed_at)
-        OUTPUT INSERTED.session_id
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-        event_id, session_number, session_date, start_time,
-        source_filename, car_id, w["weather"], w["air_temp_f"],
-        w["humidity_pct"], w["wind_mph"], w["precip_in"],
-        w["weather_observed_at"])
-    session_id = cur.fetchone()[0]
-
+def _insert_children(cur, session_id, laps, metrics, segments):
+    """Insert laps/corner_metrics/segment_times rows for a session that
+    already exists (fresh insert or post-refresh reload). Caller commits."""
     lap_ids = {}
     for l in laps:
         cur.execute("""
@@ -433,6 +429,78 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
             lap_ids[seg["lap_number"]], seg["segment_order"],
             seg["to_corner_id"], seg["segment_time_ms"])
 
+
+def load(cnx, event_id, session_number, source_filename, meta, samples,
+         laps, metrics, car_id=None, segments=None):
+    session_date = parse_session_date(meta)
+    start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
+    w = fetch_session_weather(cnx, event_id, start_time)
+
+    cur = cnx.cursor()
+    cur.execute("""
+        INSERT INTO dbo.sessions
+            (event_id, session_number, session_date, start_time,
+             source_file, car_id, weather, air_temp_f, humidity_pct,
+             wind_mph, precip_in, weather_observed_at)
+        OUTPUT INSERTED.session_id
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        event_id, session_number, session_date, start_time,
+        source_filename, car_id, w["weather"], w["air_temp_f"],
+        w["humidity_pct"], w["wind_mph"], w["precip_in"],
+        w["weather_observed_at"])
+    session_id = cur.fetchone()[0]
+
+    _insert_children(cur, session_id, laps, metrics, segments)
+    cnx.commit()
+    return session_id
+
+
+def refresh(cnx, session_id, event_id, meta, samples, laps, metrics,
+            car_id=None, segments=None):
+    """Re-ingest an already-loaded session in place: replace its laps/
+    corner_metrics/segment_times and (re)fetch weather, without touching
+    session_id/session_number/source_file. For historical CSVs loaded
+    before weather/segment-times/car_id existed (see
+    find_existing_session()). car_id is only overwritten if explicitly
+    passed - a None here means "leave whatever's already set", so a
+    later re-run doesn't clobber a car_id set via the dashboard's PATCH
+    endpoint. A failed weather refetch (returns weather.EMPTY) likewise
+    leaves any previously-fetched weather alone rather than blanking it."""
+    from ingest import weather
+
+    session_date = parse_session_date(meta)
+    start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
+    w = fetch_session_weather(cnx, event_id, start_time)
+
+    cur = cnx.cursor()
+    cur.execute("""
+        DELETE st FROM dbo.segment_times st
+        JOIN dbo.laps l ON l.lap_id = st.lap_id
+        WHERE l.session_id = ?""", session_id)
+    cur.execute("""
+        DELETE cm FROM dbo.corner_metrics cm
+        JOIN dbo.laps l ON l.lap_id = cm.lap_id
+        WHERE l.session_id = ?""", session_id)
+    cur.execute("DELETE FROM dbo.laps WHERE session_id = ?", session_id)
+
+    if w != weather.EMPTY:
+        cur.execute("""
+            UPDATE dbo.sessions
+            SET session_date = ?, start_time = ?, car_id = COALESCE(?, car_id),
+                weather = ?, air_temp_f = ?, humidity_pct = ?,
+                wind_mph = ?, precip_in = ?, weather_observed_at = ?
+            WHERE session_id = ?""",
+            session_date, start_time, car_id, w["weather"], w["air_temp_f"],
+            w["humidity_pct"], w["wind_mph"], w["precip_in"],
+            w["weather_observed_at"], session_id)
+    else:
+        cur.execute("""
+            UPDATE dbo.sessions
+            SET session_date = ?, start_time = ?, car_id = COALESCE(?, car_id)
+            WHERE session_id = ?""",
+            session_date, start_time, car_id, session_id)
+
+    _insert_children(cur, session_id, laps, metrics, segments)
     cnx.commit()
     return session_id
 
@@ -449,6 +517,13 @@ def main():
     ap.add_argument("--car-id", type=int, default=None)
     ap.add_argument("--load", action="store_true",
                     help="write to DB (default is dry run)")
+    ap.add_argument("--backfill", action="store_true",
+                    help="write to DB, auto-resolving event_id from the "
+                         "CSV if --event-id is omitted; refreshes an "
+                         "existing session in place (new weather/"
+                         "segments/car_id, same session_id) instead of "
+                         "inserting a duplicate if this exact filename "
+                         "was already loaded for the event")
     ap.add_argument("--auth", choices=["interactive", "default"],
                     default="interactive",
                     help="use 'default' inside Azure Cloud Shell")
@@ -461,13 +536,16 @@ def main():
 
     corners = []
     cnx = None
+    event_id = args.event_id
     if args.corners_json:
         import json
         with open(args.corners_json) as fh:
             corners = json.load(fh)
-    elif args.server and args.event_id:
+    elif args.server and (args.backfill or event_id):
         cnx = get_connection(args.server, args.database, args.auth)
-        corners = fetch_corners(cnx, args.event_id)
+        if event_id is None:
+            event_id = resolve_event_id(cnx, meta)
+        corners = fetch_corners(cnx, event_id)
 
     metrics = compute_corner_metrics(samples, corners) if corners else []
     segments = compute_segment_times(samples, corners) if corners else []
@@ -505,16 +583,37 @@ def main():
         print(f"\nSegment times: {laps_covered}/{len(laps)} laps with a "
               f"complete gate chain ({len(segments)} segment rows)")
 
-    if args.load:
+    if args.backfill:
+        if cnx is None:
+            sys.exit("--backfill requires --server/--database")
+        source_filename = args.csv.split("/")[-1]
+        existing_id = find_existing_session(cnx, event_id, source_filename)
+        if existing_id is not None:
+            sid = refresh(cnx, existing_id, event_id, meta, samples, laps,
+                          metrics, car_id=args.car_id, segments=segments)
+            print(f"\nRefreshed existing session_id {sid} (event "
+                  f"{event_id}): {len(laps)} laps, {len(metrics)} corner "
+                  f"metrics, {len(segments)} segments.")
+        else:
+            session_number = next_session_number(cnx, event_id)
+            sid = load(cnx, event_id, session_number, source_filename, meta,
+                      samples, laps, metrics, car_id=args.car_id,
+                      segments=segments)
+            print(f"\nLoaded as new session_id {sid} (event {event_id}, "
+                  f"session_number {session_number}): {len(laps)} laps, "
+                  f"{len(metrics)} corner metrics, {len(segments)} "
+                  f"segments.")
+    elif args.load:
         if cnx is None:
             sys.exit("--load requires --server/--database/--event-id")
-        sid = load(cnx, args.event_id, args.session_number,
+        sid = load(cnx, event_id, args.session_number,
                    args.csv.split("/")[-1], meta, samples, laps, metrics,
                    car_id=args.car_id, segments=segments)
         print(f"\nLoaded as session_id {sid}: {len(laps)} laps, "
               f"{len(metrics)} corner metrics, {len(segments)} segments.")
     else:
-        print("\nDry run only. Re-run with --load to write to the database.")
+        print("\nDry run only. Re-run with --load or --backfill to write "
+              "to the database.")
 
 
 if __name__ == "__main__":

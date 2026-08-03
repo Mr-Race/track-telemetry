@@ -60,12 +60,13 @@ The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline and the two pre-launch reviews. Nothing else
 blocks 1.0.
-- [ ] **Backfill historical sessions** — upload all pre-existing
-      RaceChrono CSVs (before the ingest Function/Shortcut existed)
-      through the same /api/ingest path so past track days show up
-      alongside new ones. Run AFTER weather + segment times land, so
-      one re-ingest pass populates everything (weather, segments,
-      OBD corner metrics) for the whole history.
+- [ ] **Backfill historical sessions** — the refresh-in-place
+      `--backfill` CLI mode exists now (see Done, 2026-08-03) and has
+      been run against the two historical CSVs already in `data/`
+      (sessions 1 and 2). Remaining: more pre-automation RaceChrono
+      CSVs exist outside this devcontainer (phone/laptop) and still
+      need to land in `data/` before `--backfill` can be run against
+      them too.
 - [ ] **Information security due diligence** — SPEC:
       `docs/specs/security-review.md` (scoped 2026-08-02). Full
       review before 1.0, and before multi-user makes every weakness
@@ -302,6 +303,50 @@ identity-level scope; design as one coherent release.
       v1.0 scope, with the security review sequenced ahead of the MCP
       OAuth work. Also recorded the personal-location-data guiding
       principle and parked iRacing ingestion under a new v3 section.
+- [x] 2026-08-03 — Backfill tooling: refresh-in-place re-ingest for
+      historical sessions (v1.0 item, partially - see still-open entry
+      above for remaining CSVs). Problem: the two pre-automation
+      RaceChrono CSVs in `data/` were already loaded as session_id 1
+      and 2 (manually, before weather/segment-times/car_id existed),
+      so simply running them back through the normal `load()` insert
+      path would have created duplicate session rows rather than
+      enriching the originals. `ingest/racechrono_parser.py` gains
+      `find_existing_session(cnx, event_id, source_filename)` (matches
+      on the exact original filename, which `source_file` already
+      stores) and `refresh(cnx, session_id, ...)`, which deletes and
+      re-inserts a session's `segment_times`/`corner_metrics`/`laps`
+      (respecting FK dependency order - no `ON DELETE CASCADE` in the
+      schema) and updates `sessions.weather*`/`car_id` in place,
+      leaving `session_id`/`session_number`/`source_file` untouched.
+      `car_id` uses `COALESCE(?, car_id)` and a failed weather refetch
+      (`weather.EMPTY`) is never written over a previously-successful
+      one, so re-running `refresh()` can't clobber data set by other
+      paths (e.g. the dashboard's car-assignment PATCH). `load()`'s
+      insert logic was factored out into a shared `_insert_children()`
+      used by both. New CLI mode `--backfill`: resolves `event_id`
+      from the CSV via the existing `resolve_event_id()` if
+      `--event-id` is omitted, then calls `refresh()` if a session
+      already exists for that `(event_id, filename)` or `load()` (with
+      `next_session_number()`) if not - one flag handles both historical
+      re-ingestion and genuinely-new CSVs. Verified against live prod
+      (not a dry run): added a firewall rule for the devcontainer's
+      current IP, connected with `DefaultAzureCredential` via the
+      already-`az login`'d CLI session (no interactive browser flow
+      needed this time - simpler than the DeviceCodeCredential path
+      used previously), then ran `--backfill` on both
+      `data/session_20260516_140619_njmp_lightning_v3.csv` (event 1)
+      and `data/session_20260613_095533_njmp_thunderbolt_v3.csv`
+      (event 2). Both matched their existing session by filename and
+      refreshed: session 1 gained weather ("Clear", 77.4°F) and kept
+      its existing `car_id` (Integra) untouched, session 2 gained
+      weather ("Clear", 79°F); `list_sessions` before/after showed the
+      same 8 session rows throughout (no duplicates created). Re-ran
+      `--backfill` on session 1's CSV a second time to confirm
+      idempotency - same session_id, same data, no duplicate. What's
+      NOT done: the actual backfill of the *other* historical CSVs,
+      which live outside this devcontainer and haven't been
+      transferred into `data/` yet - tracked in the still-open entry
+      above.
 - [x] 2026-08-02 — Dashboard: optimal lap time per session (v1.0
       item). `ingest/queries.py` gains `optimal_lap_ms()` (sums each
       segment_order's best `segment_time_ms` across a session's valid
