@@ -69,19 +69,24 @@ blocks 1.0.
       them too.
 - [ ] **Information security due diligence** — SPEC:
       `docs/specs/security-review.md` (scoped 2026-08-02, review
-      completed 2026-08-03 - see Done below). 3 remaining items
-      before this can close: (1) restrict the CIAM `SignUpSignIn`
-      user flow to invite-only / disable self-service sign-up (Entra
-      portal change, needs you - any self-registered account
-      currently gets full read/write access to all telemetry, since
-      `driver_id` exists but is never used for authorization); (2)
-      confirm the `cryptography>=48.0.1` CVE fix and the new
-      `scp`-claim check in `ingest/api_auth.py` are actually deployed
-      (redeploy the Function App + MCP Container App, verify a real
-      sign-in still works before trusting the scope check); (3)
-      redeploy the dashboard with the new CSP headers and manually
-      confirm sign-in/API calls/satellite images still work. The MCP
-      OAuth item below remains its own separately-tracked follow-up.
+      completed 2026-08-03 - see Done below). Remaining items before
+      this can close: (1) restrict the CIAM `SignUpSignIn` user flow
+      to invite-only / disable self-service sign-up (Entra portal
+      change, needs you - any self-registered account currently gets
+      full read/write access to all telemetry, since `driver_id`
+      exists but is never used for authorization); (2) the
+      `cryptography` CVE (GHSA-537c-gmf6-5ccf) turned out to be
+      **not fixable** with a simple version floor - it conflicts with
+      the existing `pyOpenSSL<26.2` pin (see Done below for the
+      live-incident this caused); real fix needs `python-tds` off
+      `X509.get_extension()` first, handed to the engineering review's
+      dependency-pinning-policy item; (3) the `scp`-claim check in
+      `ingest/api_auth.py` is deployed (Function App redeployed
+      2026-08-03) but not yet verified against a real interactive
+      sign-in - do that before trusting it; (4) redeploy the dashboard
+      with the new CSP headers and manually confirm sign-in/API
+      calls/satellite images still work. The MCP OAuth item below
+      remains its own separately-tracked follow-up.
 - [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
       the last unauthenticated endpoint. Do this after the security
       review above.
@@ -291,6 +296,40 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-03 — Redeployed the Function App and MCP Container App
+      to pick up the security review's in-source fixes, and hit (then
+      fixed) a real production incident along the way. The
+      `cryptography>=48.0.1` floor added earlier that day turned out
+      to be mutually unsatisfiable with the existing `pyOpenSSL<26.2`
+      pin (every pyOpenSSL release below 26.2 caps `cryptography`
+      under 48). `pip` doesn't error on that - it silently backtracked
+      to `pyOpenSSL==22.0.0` (2022-era, incompatible with modern
+      `cryptography`), which crashed at import. `func azure
+      functionapp publish` reported success and the app showed
+      "Running," but `/admin/functions` returned `[]` and every route
+      404'd instead of the expected 401 - a real, brief, full outage
+      of every API route caught by not trusting the deploy output
+      (the exact lesson from the earlier `mcp` crash-loop incident,
+      which is why this got checked instead of assumed). Reverted the
+      floor in both `requirements.txt` files (documented why inline:
+      the CVE fix needs `python-tds` off `X509.get_extension()`
+      first, not fixable at the version-pin level today), redeployed,
+      confirmed restored (`/api/sessions` back to 401, all 14 routes
+      re-registered via `func`'s own deploy summary). MCP Container
+      App redeployed separately (`az containerapp up --source .`);
+      per the established lesson, checked `az containerapp revision
+      list` for the new revision reaching `Healthy`/`Running` at 100%
+      traffic with the old revision fully deprovisioned (not just the
+      "Congrats!" message), then made a real `list_sessions` MCP tool
+      call against the live endpoint and got real data back.
+      `docs/specs/security-review.md` finding #3 updated to reflect
+      the CVE is genuinely unfixed (not silently reintroduced) and
+      finding #6 (the `scp` claim check) updated to "deployed, not
+      yet verified" - it needs a real interactive sign-in to confirm
+      the claim shape assumption before it's trusted, since getting
+      it wrong would lock out legitimate sign-in. Dashboard (CSP
+      headers) NOT redeployed this pass - out of scope for what was
+      asked.
 - [x] 2026-08-02 — Specs written for the two pre-launch reviews AC
       called for before declaring v1.0: `docs/specs/engineering-review.md`
       (testing, CI/CD, migrations, dependency policy, module
