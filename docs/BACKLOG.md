@@ -1071,6 +1071,28 @@ identity-level scope; design as one coherent release.
       App redeployed (`get_event_summary` live, confirmed a real 401
       rather than a crash for an unauthenticated request - i.e. this
       didn't repeat the pyOpenSSL live-incident pattern). Dashboard
-      build (`tsc -b && vite build`) succeeded but the SWA CLI deploy
-      to production was intentionally not run yet - pending your call
-      on whether to push it live now.
+      build (`tsc -b && vite build`) succeeded; deployed to production
+      via the standard SWA CLI command shortly after (asset hashes on
+      the live site confirmed to match the local build).
+- [x] 2026-08-03 — Deleted a duplicate session found via the new event
+      summary page. TNIA (event 3) showed two sessions with
+      byte-identical `start_time`/lap times (#4 and #7); checking
+      `source_file` showed different upload timestamps ~9.5 days
+      apart, meaning the same RaceChrono CSV got re-ingested later as
+      a "new" session rather than recognized as already loaded - there
+      is no ingest idempotency yet (tracked separately under v1.x's
+      "One-step ingestion" item, "add idempotency, e.g. content
+      hash"). The event summary page's chronological session-by-
+      session view is what made this obvious; the old flat sessions
+      list didn't surface it. Deleted the later duplicate
+      (`session_id=14`, session #7, `session_1785595321.csv`), kept
+      the original (`session_id=6`, session #4,
+      `session_1784769895.csv`), after confirming dependent-row counts
+      first (9 laps, 90 corner_metrics, 0 segment_times, 0
+      consumables referencing it) and deleting child rows before the
+      parent in one pass (segment_times -> corner_metrics -> laps ->
+      sessions). Re-verified `event_summary(cnx, 3)` after: 3 sessions,
+      real (non-zero) corner deltas, a real progression value
+      (-1.485s) - confirms the event page's math was correct all
+      along and the "wrong" numbers reported were genuinely duplicate
+      source data, not a query or rendering bug.
