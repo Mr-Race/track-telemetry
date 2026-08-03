@@ -234,6 +234,21 @@ def list_events(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"error": str(exc)}, 500)
 
 
+@app.route(route="events/{event_id:int}/summary", methods=["GET"],
+           auth_level=func.AuthLevel.ANONYMOUS)
+@require_auth
+def get_event_summary(req: func.HttpRequest) -> func.HttpResponse:
+    event_id = int(req.route_params["event_id"])
+    try:
+        return _json_response(
+            queries.event_summary(_connect(), event_id), 200)
+    except ValueError as exc:
+        return _json_response({"error": str(exc)}, 404)
+    except Exception as exc:
+        logging.exception("get_event_summary failed")
+        return _json_response({"error": str(exc)}, 500)
+
+
 # First write-capable dashboard endpoint (Block 6) - protected the same
 # way as the read routes, @require_auth validating a real bearer token.
 @app.route(route="events", methods=["POST"],

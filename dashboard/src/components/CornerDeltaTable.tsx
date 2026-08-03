@@ -13,7 +13,20 @@ function DeltaCell({ delta }: { delta: number | null }) {
   );
 }
 
-export function CornerDeltaTable({ deltas }: { deltas: CornerDelta[] }) {
+interface CornerDeltaLabels {
+  current: string;
+  prior: string;
+}
+
+const DEFAULT_LABELS: CornerDeltaLabels = { current: "This session", prior: "Prior session" };
+
+export function CornerDeltaTable({
+  deltas,
+  labels = DEFAULT_LABELS,
+}: {
+  deltas: CornerDelta[];
+  labels?: CornerDeltaLabels;
+}) {
   if (deltas.length === 0) {
     return <p className="muted">No prior session at this track to compare against.</p>;
   }
@@ -23,8 +36,8 @@ export function CornerDeltaTable({ deltas }: { deltas: CornerDelta[] }) {
       <thead>
         <tr>
           <th>Corner</th>
-          <th>This session</th>
-          <th>Prior session</th>
+          <th>{labels.current}</th>
+          <th>{labels.prior}</th>
           <th>Delta</th>
         </tr>
       </thead>

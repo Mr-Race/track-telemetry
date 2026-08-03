@@ -144,17 +144,6 @@ blocks 1.0.
       coordinates and zone radii, writing to the corners table.
       Replaces the manual Google Maps coordinate workflow for new
       tracks.
-- [ ] **Event summary page** — real dashboard behind the
-      /events/:eventId placeholder route. SPEC:
-      `docs/specs/event-summary-page.md` (approved by AC 2026-07-25)
-      — header/badges, four hero tiles (event best, event optimal
-      across all sessions of the event, left on table, first-to-last
-      progression), sessions table with per-row progress bars, the
-      first-vs-last corner-delta table sorted by |delta|, weather
-      strip, explicit exclusions, a new
-      `GET /api/events/{id}/summary` endpoint, and timing-screen
-      color conventions. Build AFTER v1.0's segment-times +
-      optimal-lap work, which the hero tiles depend on.
 - [ ] **Events list: in progress / upcoming / past split** (added
       2026-08-02) — the events list renders one flat table today.
       Split it into three groups using the dates already on
@@ -1033,3 +1022,55 @@ identity-level scope; design as one coherent release.
       sign-in verified - see the three entries above). OAuth 2.1/PKCE
       on the MCP server remains open as its own separately-tracked
       v1.0 item, now unblocked.
+- [x] 2026-08-03 — Event summary page (v1.x, pulled forward), replacing
+      the `/events/:eventId` placeholder per
+      `docs/specs/event-summary-page.md` (approved 2026-07-25). New
+      `queries.event_summary()` (`ingest/queries.py`): header/badges
+      (session count, total laps, total track time from *all* laps not
+      just valid ones), event best lap (with which session/lap),
+      event-wide optimal lap (same MIN-per-segment-then-SUM shape as
+      the per-session `optimal_lap_ms()`, widened to every valid lap
+      across the event's sessions), left-on-table, first-vs-last
+      session progression, first-vs-last corner deltas sorted by
+      `|delta_mph|` descending (server-side, matching this project's
+      established sort-server-side convention), and a weather summary
+      - each field `null`/empty and its UI section hidden when the
+      event doesn't have the data (0-session events, single-session
+      events, pre-segment_times sessions). New
+      `GET /api/events/{id:int}/summary` route in `function_app.py`,
+      same `@require_auth`/404-on-`ValueError` pattern as the session
+      summary route. Frontend: `EventSummaryPage.tsx` rewritten against
+      the new endpoint; reused `StatTile` and `CornerDeltaTable`
+      (added an optional `labels` prop so the same component says
+      "First session"/"Last session" here instead of "This
+      session"/"Prior session") rather than forking either; added
+      generic `.progress-bar-track`/`.progress-bar-fill` CSS (same
+      sizing as the consumables page's `.life-bar-*`, undyed since
+      lap pace isn't a good/warning/critical metric) and `.eyebrow`
+      for the org_code header line. Deliberately not built: the
+      spec's purple "optimal" timing-tower accent (no purple exists
+      anywhere in the current palette, and the spec itself says
+      existing dashboard styling wins on conflicts) and the separate
+      events-list temporal-split section of the same spec (independent
+      backlog item, not in scope here).
+      Verified for real: `queries.event_summary()` run directly
+      against the live DB for a multi-session event (id 3, 4 sessions
+      + corner story), a single-session event (id 2, hides
+      progression/corner-story, shows optimal/left-on-table/weather),
+      and a zero-session event (id 5, everything null/empty, no
+      crash). `tsc --noEmit` clean. Real interactive sign-in isn't
+      automatable here, so laid out the exact verified JSON above as
+      fixtures and screenshotted (light + dark) through a throwaway
+      unauthenticated `/preview/events/:eventId` route with Playwright
+      intercepting the API call - confirmed hero-tile conditional
+      rendering, progress-bar scaling (fastest session = full bar,
+      single-session event = 100%), and pluralization all render
+      correctly against the real numbers, then deleted the preview
+      route and the temporary `playwright` install (`git status`
+      confirms `package.json`/`package-lock.json` untouched). Function
+      App redeployed (`get_event_summary` live, confirmed a real 401
+      rather than a crash for an unauthenticated request - i.e. this
+      didn't repeat the pyOpenSSL live-incident pattern). Dashboard
+      build (`tsc -b && vite build`) succeeded but the SWA CLI deploy
+      to production was intentionally not run yet - pending your call
+      on whether to push it live now.

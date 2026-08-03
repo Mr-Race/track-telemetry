@@ -385,6 +385,162 @@ def list_events(cnx):
     ]
 
 
+def event_summary(cnx, event_id):
+    """Header, hero stats, per-session rows, and first-vs-last corner
+    deltas for one event - powers the event summary dashboard page.
+    See docs/specs/event-summary-page.md."""
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT e.event_id, e.event_name, e.track_id, t.track_name,
+               o.org_code, e.start_date, e.end_date
+        FROM dbo.events e
+        JOIN dbo.tracks t ON t.track_id = e.track_id
+        JOIN dbo.organizations o ON o.organization_id = e.organization_id
+        WHERE e.event_id = ?""", event_id)
+    row = cur.fetchone()
+    if row is None:
+        raise ValueError(f"No event with event_id={event_id}")
+
+    event = {
+        "event_id": row[0], "event_name": row[1],
+        "track_id": row[2], "track_name": row[3], "org_code": row[4],
+        "start_date": str(row[5]),
+        "end_date": str(row[6]) if row[6] is not None else None,
+    }
+
+    cur.execute("""
+        SELECT s.session_id, s.session_number, s.start_time,
+               lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms,
+               opt_agg.optimal_lap_ms, s.air_temp_f
+        FROM dbo.sessions s
+        OUTER APPLY (
+            SELECT MIN(CASE WHEN l.is_valid = 1 THEN l.lap_time_ms END)
+                       AS best_lap_ms,
+                   AVG(CASE WHEN l.is_valid = 1
+                            THEN CAST(l.lap_time_ms AS FLOAT) END)
+                       AS avg_valid_lap_ms
+            FROM dbo.laps l WHERE l.session_id = s.session_id
+        ) lap_agg
+        OUTER APPLY (
+            SELECT SUM(best_ms) AS optimal_lap_ms
+            FROM (
+                SELECT MIN(st.segment_time_ms) AS best_ms
+                FROM dbo.segment_times st
+                JOIN dbo.laps sl ON sl.lap_id = st.lap_id
+                WHERE sl.session_id = s.session_id AND sl.is_valid = 1
+                GROUP BY st.segment_order
+            ) best_segments
+        ) opt_agg
+        WHERE s.event_id = ?
+        ORDER BY s.session_number""", event_id)
+    sessions = [
+        {
+            "session_id": r[0], "session_number": r[1],
+            "start_time": str(r[2]) if r[2] is not None else None,
+            "best_lap_ms": r[3],
+            "best_lap": fmt_ms(r[3]) if r[3] is not None else None,
+            "avg_valid_lap_ms": round(r[4]) if r[4] is not None else None,
+            "avg_valid_lap": (fmt_ms(round(r[4]))
+                               if r[4] is not None else None),
+            "optimal_lap_ms": r[5],
+            "optimal_lap": fmt_ms(r[5]) if r[5] is not None else None,
+            "air_temp_f": float(r[6]) if r[6] is not None else None,
+        }
+        for r in cur.fetchall()
+    ]
+    event["session_count"] = len(sessions)
+
+    cur.execute("""
+        SELECT COUNT(*), SUM(l.lap_time_ms)
+        FROM dbo.laps l
+        JOIN dbo.sessions s ON s.session_id = l.session_id
+        WHERE s.event_id = ?""", event_id)
+    total_laps, total_track_time_ms = cur.fetchone()
+    event["total_laps"] = total_laps
+    event["total_track_time_ms"] = total_track_time_ms
+
+    cur.execute("""
+        SELECT TOP 1 s.session_id, s.session_number, l.lap_number,
+               l.lap_time_ms
+        FROM dbo.laps l
+        JOIN dbo.sessions s ON s.session_id = l.session_id
+        WHERE s.event_id = ? AND l.is_valid = 1
+        ORDER BY l.lap_time_ms ASC""", event_id)
+    best_row = cur.fetchone()
+    event["best_lap_ms"] = best_row[3] if best_row else None
+    event["best_lap"] = fmt_ms(best_row[3]) if best_row else None
+    event["best_lap_session_id"] = best_row[0] if best_row else None
+    event["best_lap_session_number"] = best_row[1] if best_row else None
+
+    cur.execute("""
+        SELECT SUM(best_ms) FROM (
+            SELECT MIN(st.segment_time_ms) AS best_ms
+            FROM dbo.segment_times st
+            JOIN dbo.laps l ON l.lap_id = st.lap_id
+            JOIN dbo.sessions s ON s.session_id = l.session_id
+            WHERE s.event_id = ? AND l.is_valid = 1
+            GROUP BY st.segment_order
+        ) best_segments""", event_id)
+    optimal_ms = cur.fetchone()[0]
+    event["optimal_lap_ms"] = optimal_ms
+    event["optimal_lap"] = fmt_ms(optimal_ms) if optimal_ms is not None else None
+    event["left_on_table_ms"] = (
+        event["best_lap_ms"] - optimal_ms
+        if event["best_lap_ms"] is not None and optimal_ms is not None
+        else None)
+
+    first_best = sessions[0]["best_lap_ms"] if sessions else None
+    last_best = sessions[-1]["best_lap_ms"] if sessions else None
+    event["progression_ms"] = (
+        last_best - first_best
+        if len(sessions) >= 2 and first_best is not None
+        and last_best is not None else None)
+
+    corner_deltas = []
+    if len(sessions) >= 2:
+        try:
+            lap_first = fastest_valid_lap(cur, sessions[0]["session_id"])
+            lap_last = fastest_valid_lap(cur, sessions[-1]["session_id"])
+        except ValueError:
+            lap_first = lap_last = None
+        if lap_first and lap_last:
+            speeds_first = corner_speeds_for_lap(cur, lap_first["lap_id"])
+            speeds_last = corner_speeds_for_lap(cur, lap_last["lap_id"])
+            for code in set(speeds_first) | set(speeds_last):
+                a, b = speeds_last.get(code), speeds_first.get(code)
+                delta = round(a - b, 1) if a is not None and b is not None else None
+                corner_deltas.append({
+                    "corner_code": code,
+                    "min_speed_mph": a,
+                    "prior_min_speed_mph": b,
+                    "delta_mph": delta,
+                })
+            corner_deltas.sort(
+                key=lambda d: -abs(d["delta_mph"])
+                if d["delta_mph"] is not None else 0)
+    event["corner_deltas"] = corner_deltas
+
+    cur.execute("""
+        SELECT MIN(air_temp_f), MAX(air_temp_f)
+        FROM dbo.sessions WHERE event_id = ? AND air_temp_f IS NOT NULL""",
+        event_id)
+    temp_min, temp_max = cur.fetchone()
+    cur.execute("""
+        SELECT DISTINCT weather FROM dbo.sessions
+        WHERE event_id = ? AND weather IS NOT NULL""", event_id)
+    conditions = [r[0] for r in cur.fetchall()]
+    event["weather"] = (
+        {
+            "temp_min_f": float(temp_min) if temp_min is not None else None,
+            "temp_max_f": float(temp_max) if temp_max is not None else None,
+            "conditions": conditions,
+        }
+        if temp_min is not None or conditions else None)
+
+    event["sessions"] = sessions
+    return event
+
+
 def create_event(cnx, track_id, organization_id, event_name, start_date,
                   end_date):
     cur = cnx.cursor()

@@ -133,6 +133,49 @@ export interface NewEvent {
   end_date: string | null;
 }
 
+export interface EventSessionRow {
+  session_id: number;
+  session_number: number;
+  start_time: string | null;
+  best_lap_ms: number | null;
+  best_lap: string | null;
+  avg_valid_lap_ms: number | null;
+  avg_valid_lap: string | null;
+  optimal_lap_ms: number | null;
+  optimal_lap: string | null;
+  air_temp_f: number | null;
+}
+
+export interface EventWeather {
+  temp_min_f: number | null;
+  temp_max_f: number | null;
+  conditions: string[];
+}
+
+export interface EventSummary {
+  event_id: number;
+  event_name: string;
+  track_id: number;
+  track_name: string;
+  org_code: string;
+  start_date: string;
+  end_date: string | null;
+  session_count: number;
+  total_laps: number;
+  total_track_time_ms: number | null;
+  best_lap_ms: number | null;
+  best_lap: string | null;
+  best_lap_session_id: number | null;
+  best_lap_session_number: number | null;
+  optimal_lap_ms: number | null;
+  optimal_lap: string | null;
+  left_on_table_ms: number | null;
+  progression_ms: number | null;
+  corner_deltas: CornerDelta[];
+  weather: EventWeather | null;
+  sessions: EventSessionRow[];
+}
+
 export interface Car {
   car_id: number;
   display_name: string;
@@ -260,6 +303,10 @@ export function listOrganizations(): Promise<Organization[]> {
 
 export function listEvents(): Promise<EventListItem[]> {
   return getJson("/events");
+}
+
+export function getEventSummary(eventId: number): Promise<EventSummary> {
+  return getJson(`/events/${eventId}/summary`);
 }
 
 export function createEvent(event: NewEvent): Promise<{ event_id: number }> {
