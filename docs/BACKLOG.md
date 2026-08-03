@@ -71,38 +71,9 @@ blocks 1.0.
       `docs/specs/security-review.md` (scoped 2026-08-02, review
       completed 2026-08-03 - see Done below). Remaining items before
       this can close: (1) restrict the CIAM `SignUpSignIn` user flow
-      to invite-only / disable self-service sign-up. **In progress,
-      2026-08-03**: hit a real admin lockout first - your
-      `andres_race11@outlook.com` identity is the tenant's Global
-      Admin (auto-assigned when the tenant was created under this
-      MSA) but every admin surface (Azure Portal, Entra admin center,
-      `mysignins.microsoft.com`, `az login` incl. via Cloud Shell) kept
-      resolving sign-in to the personal-account identity instead of
-      the org one, or outright blocking (`AADSTS530035` - Security
-      Defaults blocks device code flow + gates Azure
-      Portal/CLI/PowerShell behind MFA). **Resolved for interactive
-      admin access**: signing out and back in through the Azure
-      Portal (prompting a PIN) got a working org session; from there
-      `entra.microsoft.com` also started working. `az`/Graph Explorer
-      remain blocked (Security Defaults excludes app-only Graph and
-      non-Microsoft-first-party interactive apps from this same
-      relief) - not pursued further, since Portal + Entra admin
-      center access is what actually matters. **Found via DevTools
-      network capture** (`entra.microsoft.com` → External Identities
-      → User flows, real Graph calls visible/replayable since that
-      app isn't proxied like classic Portal blades): the flow to fix
-      is `SignUpSignIn`, id `6f8be7c8-4210-45a1-a1a7-4a0d782fa86e`,
-      confirmed tied to app `99a220cf-5739-4be8-8d68-55ebaa905ad3`
-      (this dashboard) via its `conditions.applications`, currently
-      `isSignUpAllowed: true`. **Not yet done**: the actual fix is a
-      one-line Graph PATCH (`beta` endpoint, set
-      `onInteractiveAuthFlowStart.isSignUpAllowed` to `false`) -
-      mechanically blocked today only by copy/paste friction getting
-      a captured bearer token into a `curl` call via Cloud Shell, not
-      by any remaining access problem. Pick this back up by repeating
-      the DevTools capture (Network tab, `authenticationEventsFlows`
-      request, Copy as cURL) against that same flow ID and PATCHing
-      `isSignUpAllowed` to `false`; (2) the
+      to invite-only / disable self-service sign-up is done
+      (2026-08-03, see Done below) - `isSignUpAllowed` is now `false`
+      on that flow; (2) the
       `cryptography` CVE (GHSA-537c-gmf6-5ccf) turned out to be
       **not fixable** with a simple version floor - it conflicts with
       the existing `pyOpenSSL<26.2` pin (see Done below for the
@@ -1026,3 +997,19 @@ identity-level scope; design as one coherent release.
       against) - the client-side check is the one that mattered here,
       since the risk was specifically a bad assumption locking out
       legitimate sign-in before it ever reaches the API.
+- [x] 2026-08-03 — Disabled self-service sign-up on the CIAM
+      `SignUpSignIn` user flow, closing item (1) of the security-review
+      follow-ups (see the "Information security due diligence" entry
+      above). PATCHed `isSignUpAllowed` to `false` via the Graph beta
+      endpoint (`/beta/identity/authenticationEventsFlows/{id}`) using
+      a bearer token captured through DevTools (Network tab on
+      `entra.microsoft.com` → `authenticationEventsFlows` request).
+      The obvious request shape - `onInteractiveAuthFlowStart` alone -
+      got rejected with `AADB2C`/"request body is null or in bad
+      format"; the fix was including a top-level `@odata.type` of
+      `#microsoft.graph.externalUsersSelfServiceSignUpEventsFlow` on
+      the PATCH body (the endpoint needs the derived flow resource's
+      type, not just the nested property's), which returned `204` and
+      verified `isSignUpAllowed: false` on a follow-up GET. Script at
+      `patch-signup-flow.sh` (scratchpad, not committed - takes
+      `GRAPH_TOKEN` as an env var, no token persisted to disk).
