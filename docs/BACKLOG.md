@@ -80,15 +80,11 @@ blocks 1.0.
       the existing `pyOpenSSL<26.2` pin (see Done below for the
       live-incident this caused); real fix needs `python-tds` off
       `X509.get_extension()` first, handed to the engineering review's
-      dependency-pinning-policy item; (3) the `scp`-claim check in
-      `ingest/api_auth.py` and the dashboard's new CSP headers are
-      both deployed (Function App + dashboard redeployed 2026-08-03,
-      headers/routes/assets all confirmed live via `curl`) but neither
-      has been verified against a **real interactive sign-in** yet -
-      do that next, since a bad `scp` assumption or an overly-strict
-      CSP directive could each lock out legitimate sign-in and only a
-      real browser test would catch it. The MCP OAuth item below
-      remains its own separately-tracked follow-up.
+      dependency-pinning-policy item. (3) real interactive sign-in
+      verification against prod is done (2026-08-03, see Done below)
+      - the `scp` check and CSP headers don't lock out legitimate
+      sign-in. The MCP OAuth item below remains its own
+      separately-tracked follow-up.
 - [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
       the last unauthenticated endpoint. Do this after the security
       review above.
@@ -985,3 +981,20 @@ identity-level scope; design as one coherent release.
       auto-resolution logic works end-to-end through the real HTTP path,
       not just locally. Still open: exercising the rebuilt Shortcut
       itself from the Shortcuts app on a real phone (manual, on-device).
+- [x] 2026-08-03 — Real interactive sign-in verification against prod,
+      closing the last open piece of the 2026-08-03 CSP/`scp`-check
+      deploy (see the "Redeploy dashboard with CSP/X-Frame-Options"
+      commit). Manually signed in at
+      `https://salmon-moss-0a7e4b70f.7.azurestaticapps.net` via the
+      real `loginRedirect` flow against `tracktelemetry.ciamlogin.com`,
+      landed on the authenticated `DashboardHome`, and loaded a
+      protected route (`/sessions`) with a real bearer token — no CSP
+      violations in the browser console and no unexpected 401s, so the
+      `connect-src`/`frame-ancestors` policy in
+      `dashboard/staticwebapp.config.json` and the `scp`-claim check in
+      `ingest/api_auth.py` both work under real sign-in, not just
+      `curl`. No server-side corroboration (no Application Insights
+      component provisioned on the Function App to check request logs
+      against) - the client-side check is the one that mattered here,
+      since the risk was specifically a bad assumption locking out
+      legitimate sign-in before it ever reaches the API.
