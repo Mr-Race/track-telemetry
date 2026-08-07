@@ -4,6 +4,10 @@
 mcp<2.0.0
 azure-identity
 azure-storage-blob
+# Bearer-token validation for the OAuth Resource Server (mcp_server/auth.py):
+# JWKS signature verification against the CIAM tenant. Same dependency
+# ingest/api_auth.py already uses for the dashboard's read API.
+PyJWT[crypto]
 python-tds
 # pytds's TLS hostname check used to call X509.get_extension(), removed
 # in pyOpenSSL 26.2 - ingest/_pytds_tls_compat.py monkeypatches that

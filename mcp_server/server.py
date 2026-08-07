@@ -10,12 +10,30 @@ no write path here. See docs/mcp_server.md for deployment notes.
 import os
 from typing import Optional
 
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 
 from ingest import queries
 from ingest.cloud import get_cloud_connection
+from mcp_server.auth import ISSUER, QUALIFIED_SCOPE, EntraTokenVerifier
 
-mcp = FastMCP("track-telemetry", host="0.0.0.0")
+# OAuth 2.1 Resource Server: token_verifier + auth.resource_server_url
+# make FastMCP wrap /mcp in RequireAuthMiddleware and publish
+# /.well-known/oauth-protected-resource (RFC 9728) advertising ISSUER as
+# the authorization server, so an MCP client can discover where to
+# authenticate. MCP_RESOURCE_URL is this server's own public FQDN.
+mcp = FastMCP(
+    "track-telemetry",
+    host="0.0.0.0",
+    token_verifier=EntraTokenVerifier(),
+    auth=AuthSettings(
+        issuer_url=ISSUER,
+        resource_server_url=os.environ["MCP_RESOURCE_URL"],
+        # Advertise the fully-qualified scope so clients request the form
+        # Entra accepts (api://<id>/mcp.access), not the bare short name.
+        required_scopes=[QUALIFIED_SCOPE],
+    ),
+)
 
 
 def _connect():

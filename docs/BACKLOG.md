@@ -293,6 +293,64 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [~] 2026-08-07 — OAuth 2.1 on the MCP server (last unauthenticated
+      endpoint, tracked v1.0 item). SERVER SIDE SHIPPED & LIVE, CLAUDE
+      CONNECTION BLOCKED by a known Entra↔MCP incompatibility — see
+      "Blocked / next" at the end of this entry.
+      What shipped: `ca-track-telemetry-mcp` is now an OAuth Resource
+      Server. New `mcp_server/auth.py` (`EntraTokenVerifier`, async
+      `TokenVerifier`) validates CIAM bearer tokens via PyJWT/JWKS —
+      signature/issuer/audience + a required `mcp.access` scope —
+      mirroring the proven `ingest/api_auth.py`. `server.py` wires it via
+      `FastMCP(..., token_verifier=, auth=AuthSettings(issuer_url,
+      resource_server_url, required_scopes))`, which auto-wraps `/mcp` in
+      `RequireAuthMiddleware` and publishes
+      `/.well-known/oauth-protected-resource` (RFC 9728). Separate CIAM
+      app registration `track-telemetry-mcp`
+      (`93fedc8d-17e5-428a-bfa1-1104befda24f`) with an `mcp.access`
+      scope + Claude's `https://claude.ai/api/mcp/auth_callback` redirect
+      + a client secret — created by hand in the Entra portal because the
+      admin identity is a personal (MSA) account that Azure CLI /
+      device-code sign-in rejects for this tenant (`AADSTS530035`), and
+      portal-captured Graph tokens are nonce-bound and unusable from curl
+      (`az ad`/`az rest` automation both closed). `mcp.access` delegated
+      permission added + admin-consented (via "APIs my organization
+      uses", since the app doesn't self-list under "My APIs"). Deployed
+      via `az containerapp up --source .` with env vars
+      `MCP_TENANT_ID`/`MCP_CLIENT_ID`/`MCP_RESOURCE_URL`.
+      Verified working: locally against real RS256-signed tokens (accepts
+      valid aud=client-id *and* aud=`api://`-uri; rejects missing-scope /
+      wrong-aud / wrong-iss / expired); live in prod the metadata
+      advertises the CIAM issuer, `/mcp` returns 401+`WWW-Authenticate`
+      with no/garbage token, and the fully-qualified scope
+      `api://…/mcp.access` is now advertised in `scopes_supported` (bare
+      `mcp.access` was rejected by Entra as an unknown scope).
+      Blocked / next (pick up here): Claude's connector completes OAuth
+      discovery + consent but the token request fails with
+      `AADSTS9010010: The resource parameter provided in the request
+      doesn't match with the requested scopes.` Root cause is a known,
+      widely-reported Entra↔MCP incompatibility (anthropics/claude-code
+      #52871; microsoft/{azure-devops-mcp #1293, Dataverse-MCP #15,
+      powerbi-modeling-mcp #68}): the MCP client sends an RFC 8707
+      `resource` param (the server URL, `https://…azurecontainerapps.io/`
+      — note the WHATWG-normalised trailing slash) alongside the scope,
+      but Entra's v2.0 endpoint (post-~Mar-2026 enforcement) rejects the
+      pair unless `resource` string-matches the scope's resource, which
+      it can't here (server URL ≠ `api://93fedc8d…`). Plan agreed with
+      Andres: (1) TRY alignment — set the app's Application ID URI to a
+      PATH-based server URL (`https://…azurecontainerapps.io/mcp`, whose
+      path dodges the client's host-only trailing-slash bug), expose
+      `mcp.access` under it, have the server advertise that as the
+      resource + scope, and accept aud=that URL in the verifier; (2) if
+      the client bug still defeats it, FALL BACK to making the MCP server
+      an OAuth AS proxy that strips/normalises the `resource` param
+      before forwarding to Entra. NOTE: `mcp_server/auth.py` currently
+      carries TEMP `[MCP-AUTH-DEBUG]` print statements (per-request token
+      accept/reject logging) — strip them once the connector works.
+      Diagnostics tip: Log Analytics workspace `1ac9567e-…` /
+      `ContainerAppConsoleLogs_CL` aggregates all replicas (single-replica
+      `az containerapp logs --follow` misses calls on the other replica).
+      Docs: `docs/mcp_server.md` Authentication section + env vars.
 - [x] 2026-08-03 — Redeployed the dashboard (`swa-track-telemetry-dashboard`)
       to pick up the security review's CSP + `X-Frame-Options` headers.
       `npm run build` then the standard SWA CLI deploy
