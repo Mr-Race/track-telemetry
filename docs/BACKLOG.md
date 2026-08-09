@@ -60,6 +60,39 @@ The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline and the two pre-launch reviews. Nothing else
 blocks 1.0.
+- [ ] **Mobile/responsive pass across the dashboard** (added 2026-08-09
+      per AC). Hard requirement: **the page scrolls vertically only —
+      never sideways.** Wide content (tables) may scroll horizontally
+      *inside its own container*, but `document.body` must never exceed
+      the viewport width at any supported size.
+      This is a real gap, not a polish item: `dashboard/src/index.css`
+      currently contains **no width breakpoints at all** — the only
+      `@media` in the file is `prefers-color-scheme`. Every layout is
+      whatever the desktop rule produces, squeezed. (`index.html`'s
+      viewport meta is correct, so this is purely CSS/layout.)
+      Known culprits, from screenshots taken at 420px on 2026-08-09
+      while building the event page:
+      - `header` is a non-wrapping flex row holding the `h1`, a 6-link
+        `nav`, and the auth control. At phone widths the last nav item
+        ("Cars") runs under the "Sign in" button. Needs to wrap, or
+        collapse to a menu.
+      - `.data-table` is `width: 100%` but several tables carry 4-5
+        columns, and the event page deliberately adds `white-space:
+        nowrap` to session cells, corner labels, and date ranges (a
+        wrapped label breaks the timing-screen row rhythm). Those
+        tables need an `overflow-x: auto` wrapper so the *table*
+        scrolls, not the page.
+      - `.hero-grid` is a fixed 2-column grid; check it at ~320px,
+        where the big display-face tile values may overflow their tile.
+      Scope: audit every route (`/`, `/sessions`, `/sessions/:id`,
+      `/tracks`, `/tracks/:id`, `/events`, `/events/:id`,
+      `/consumables`, `/cars`) at ~320/390/420px and at tablet width,
+      then fix. Worth an automated guard once fixed — assert
+      `scrollWidth <= clientWidth` on `document.documentElement` per
+      route in the Playwright pass described in the 2026-08-09 event
+      page entry, so a future wide element fails loudly instead of
+      being found by eye. Note `overflow-x: hidden` on `body` is NOT
+      the fix — it hides the symptom and silently clips content.
 - [ ] **Event 3's session numbers are wrong** (found 2026-08-09 while
       rebuilding the event page). TNIA (event_id 3) has 3 sessions
       numbered **4, 5, 6** rather than 1, 2, 3 - leftover numbering from
