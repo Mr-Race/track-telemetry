@@ -190,14 +190,18 @@ def corner_speeds_for_lap(cur, lap_id):
     return {r[0]: float(r[1]) for r in cur.fetchall()}
 
 
-def corner_names(cur, track_id):
-    """corner_code -> corner_name for one track. Names are optional and
-    curated per track (Lightning has T9 Lightbulb, T10 Kink), so only
-    named corners appear here; callers fall back to the bare code."""
+def corner_catalog(cur, track_id):
+    """corner_code -> (corner_name, sort_order) for one track.
+
+    Names are optional and curated per track (Lightning has T9
+    Lightbulb, T10 Kink), so callers fall back to the bare code.
+    sort_order is the sequence around the lap and is the only correct
+    way to order corners - the codes are strings, so sorting them as
+    text puts '10' before '2' and has no idea where '3A' belongs."""
     cur.execute("""
-        SELECT corner_code, corner_name FROM dbo.corners
-        WHERE track_id = ? AND corner_name IS NOT NULL""", track_id)
-    return {r[0]: r[1] for r in cur.fetchall()}
+        SELECT corner_code, corner_name, sort_order FROM dbo.corners
+        WHERE track_id = ?""", track_id)
+    return {r[0]: (r[1], r[2]) for r in cur.fetchall()}
 
 
 def compare_laps(cnx, session_id_a, session_id_b):
@@ -306,13 +310,13 @@ def session_summary(cnx, session_id):
         lap_b = fastest_valid_lap(cur, prior_session_id)
         speeds_a = corner_speeds_for_lap(cur, lap_a["lap_id"])
         speeds_b = corner_speeds_for_lap(cur, lap_b["lap_id"])
-        names = corner_names(cur, track_id)
+        catalog = corner_catalog(cur, track_id)
         for code in sorted(set(speeds_a) | set(speeds_b),
-                            key=lambda c: (len(c), c)):
+                            key=lambda c: catalog.get(c, (None, 0))[1]):
             a, b = speeds_a.get(code), speeds_b.get(code)
             corner_deltas.append({
                 "corner_code": code,
-                "corner_name": names.get(code),
+                "corner_name": catalog.get(code, (None, 0))[0],
                 "min_speed_mph": a,
                 "prior_min_speed_mph": b,
                 "delta_mph": (round(a - b, 1) if a is not None
@@ -567,20 +571,21 @@ def event_summary(cnx, event_id):
         if lap_first and lap_last:
             speeds_first = corner_speeds_for_lap(cur, lap_first["lap_id"])
             speeds_last = corner_speeds_for_lap(cur, lap_last["lap_id"])
-            names = corner_names(cur, event["track_id"])
-            for code in set(speeds_first) | set(speeds_last):
+            catalog = corner_catalog(cur, event["track_id"])
+            # Lap order (T1, T2, ... T10), not biggest-mover-first: the
+            # corner story reads as a walk around the track, so a driver
+            # can follow it in the order they actually drive it.
+            for code in sorted(set(speeds_first) | set(speeds_last),
+                                key=lambda c: catalog.get(c, (None, 0))[1]):
                 a, b = speeds_last.get(code), speeds_first.get(code)
                 delta = round(a - b, 1) if a is not None and b is not None else None
                 corner_deltas.append({
                     "corner_code": code,
-                    "corner_name": names.get(code),
+                    "corner_name": catalog.get(code, (None, 0))[0],
                     "min_speed_mph": a,
                     "prior_min_speed_mph": b,
                     "delta_mph": delta,
                 })
-            corner_deltas.sort(
-                key=lambda d: -abs(d["delta_mph"])
-                if d["delta_mph"] is not None else 0)
     event["corner_deltas"] = corner_deltas
 
     cur.execute("""

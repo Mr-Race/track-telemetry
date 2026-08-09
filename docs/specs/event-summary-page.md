@@ -110,7 +110,12 @@ Columns: `CORNER · S1 MIN · S2 MIN · Δ`
 - Min speeds in mph, one decimal, right-aligned mono.
 - Δ column is signed and coloured: **green for positive** (faster
   through the corner), **red for negative**.
-- **Sorted by |Δ| descending** so the biggest movers lead.
+- **Sorted in lap order** (T1, T2, … T10) using the track's
+  `corners.sort_order`, so the table reads as a walk around the
+  circuit in the order it's driven. (Changed 2026-08-09 per AC; was
+  |Δ| descending, which led with the biggest movers but scrambled the
+  lap. Sort on `sort_order`, never on the code string — codes are
+  text, so `10` sorts before `2` and `3A` lands nowhere sensible.)
 - One-line muted explainer under the section label: "What improved
   from first to last session of the day — the arc of the event."
 - Single-session events: hide this section entirely.

@@ -264,6 +264,19 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-09 — Corner story now sorts in lap order (T1, T2, … T10)
+      instead of |Δ| descending, per AC — the table reads as a walk
+      around the circuit in the order it's driven. Spec updated in the
+      same commit so it doesn't drift from the build again. Sorting is
+      on the track's `corners.sort_order`, never the code string:
+      `corner_code` is text, so a string sort puts `10` before `2` and
+      has nowhere sensible to put `3A`/`11A`. `corner_names()` became
+      `corner_catalog()` (code -> name + sort_order); the session
+      summary's delta table was moved onto the same ordering, replacing
+      a `(len(code), code)` approximation that happened to be right for
+      plain numeric codes and would have been wrong for lettered ones.
+      Server-side only - no dashboard change, so only the Function App
+      was redeployed.
 - [x] 2026-08-09 — Event summary page rebuilt against the rewritten
       layout spec (`docs/specs/event-summary-page.md`, rewritten
       2026-08-03 *after* the first build landed, which is why the page
