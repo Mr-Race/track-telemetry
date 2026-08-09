@@ -9,6 +9,17 @@
   --good: #0ca30c;
   --warning: #fab219;
   --critical: #d03b3b;
+  /* Timing-tower convention: purple marks the fastest/optimal value.
+     Semantic and sparing - never decorative. */
+  --fastest: #8b3fd6;
+
+  /* Two families, used strictly (docs/specs/event-summary-page.md):
+     a display face for titles and big tile numbers, a mono face for
+     every table cell, label, and small stat. Self-hosted/system only -
+     the CSP has no font-src, so it falls back to default-src 'self'. */
+  --font-display: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
 
   color-scheme: light dark;
   color: var(--text-primary);
@@ -29,6 +40,7 @@
     --good: #0ca30c;
     --warning: #fab219;
     --critical: #e66767;
+    --fastest: #b47cf0;
   }
 }
 
@@ -291,6 +303,164 @@ a {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* ---------- Event summary page (docs/specs/event-summary-page.md) ----------
+   A timing screen, not a business dashboard: panels one step lighter than
+   the page, numbers as the loudest element, colour only where it means
+   something. */
+
+.event-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.event-title {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  margin: 6px 0 4px;
+}
+
+.event-subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.badge-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--gridline);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+/* Section labels: uppercase, wide-tracked, muted, mono. */
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 32px 0 10px;
+}
+
+.section-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: -4px 0 12px;
+}
+
+/* Six hero tiles, two columns - phone-first, and wide enough that the
+   2-col reading order in the spec holds at every width. */
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+/* Label / value / caption - that three-line stack is the tile. */
+.stat-tile.hero .stat-tile-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+}
+
+.stat-tile.hero {
+  border: none;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.stat-tile.hero .stat-tile-value {
+  font-family: var(--font-display);
+  font-size: 33px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin-top: 6px;
+}
+
+.stat-tile.hero .stat-tile-sublabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.tone-fastest {
+  color: var(--fastest);
+}
+
+.tone-good {
+  color: var(--good);
+}
+
+.tone-bad {
+  color: var(--critical);
+}
+
+/* Sessions + corner tables: mono everywhere, numbers right-aligned. */
+.timing-table {
+  font-family: var(--font-mono);
+}
+
+.timing-table th,
+.timing-table td {
+  font-size: 13px;
+}
+
+.timing-table th {
+  letter-spacing: 0.1em;
+}
+
+.timing-table th + th,
+.timing-table td + td {
+  text-align: right;
+}
+
+/* "S4 · 9:00p" and "T9 Lightbulb" stay on one line - a wrapped label
+   breaks the row rhythm the timing screen depends on. */
+.timing-table td:first-child,
+.timing-table .corner-cell,
+.data-table td.nowrap,
+.nowrap {
+  white-space: nowrap;
+}
+
+/* The session progress bar is the visual arc of the day - one thin bar
+   per row, fastest session at full width. */
+.timing-table td.progress-cell {
+  padding-top: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gridline);
+}
+
+.timing-table tr.session-main td {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.progress-bar-fill.pace-fill {
+  background: linear-gradient(90deg, var(--text-muted), var(--good));
 }
 
 .link-button {

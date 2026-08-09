@@ -25,6 +25,12 @@ import logging
 import math
 import sys
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+# Tracks are a small manually-curated table and sql/17 backfills every
+# existing row, but a newly added track can sit with a null zone until
+# it's curated.
+DEFAULT_TRACK_TZ = "America/New_York"
 
 MPS_TO_MPH = 2.23694
 
@@ -312,6 +318,27 @@ def fetch_corners(cnx, event_id):
              "zone_radius_m": r[4]} for r in cur.fetchall()]
 
 
+def track_timezone(cnx, event_id):
+    """IANA zone of the event's track (sql/17). Ingest needs it because
+    the GPS timestamp is UTC but sessions.start_time is a naive
+    DATETIME2 holding local track time."""
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT t.iana_timezone
+        FROM dbo.events e
+        JOIN dbo.tracks t ON t.track_id = e.track_id
+        WHERE e.event_id = ?""", event_id)
+    row = cur.fetchone()
+    return row[0] if row and row[0] else DEFAULT_TRACK_TZ
+
+
+def to_track_local(dt_utc, tz_name):
+    """UTC-aware -> naive local wall-clock at the track. Storing the raw
+    UTC value in the naive column is what made every session display
+    4-5 hours late (a 5pm EDT session showing as 21:00)."""
+    return dt_utc.astimezone(ZoneInfo(tz_name)).replace(tzinfo=None)
+
+
 def parse_session_date(meta):
     created = meta.get("Created", "")
     if not created:
@@ -433,8 +460,11 @@ def _insert_children(cur, session_id, laps, metrics, segments):
 def load(cnx, event_id, session_number, source_filename, meta, samples,
          laps, metrics, car_id=None, segments=None):
     session_date = parse_session_date(meta)
-    start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
-    w = fetch_session_weather(cnx, event_id, start_time)
+    # Weather is keyed on the absolute instant, so it takes the UTC
+    # value; the column stores local track time.
+    start_utc = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
+    w = fetch_session_weather(cnx, event_id, start_utc)
+    start_time = to_track_local(start_utc, track_timezone(cnx, event_id))
 
     cur = cnx.cursor()
     cur.execute("""
@@ -469,8 +499,9 @@ def refresh(cnx, session_id, event_id, meta, samples, laps, metrics,
     from ingest import weather
 
     session_date = parse_session_date(meta)
-    start_time = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
-    w = fetch_session_weather(cnx, event_id, start_time)
+    start_utc = datetime.fromtimestamp(samples[0]["ts"], tz=timezone.utc)
+    w = fetch_session_weather(cnx, event_id, start_utc)
+    start_time = to_track_local(start_utc, track_timezone(cnx, event_id))
 
     cur = cnx.cursor()
     cur.execute("""

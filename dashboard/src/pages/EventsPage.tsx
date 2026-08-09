@@ -1,11 +1,68 @@
 import { useCallback, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   createEvent,
   listEvents,
   listOrganizations,
   listTracks,
+  type EventListItem,
+  type EventPhase,
 } from "../api/client";
 import { useFetch } from "../api/useFetch";
+
+// Render order matches the server's row order; empty groups collapse
+// rather than render an empty header.
+const PHASE_GROUPS: { phase: EventPhase; heading: string }[] = [
+  { phase: "in_progress", heading: "In progress" },
+  { phase: "upcoming", heading: "Upcoming" },
+  { phase: "past", heading: "Past" },
+];
+
+function EventGroup({ heading, events }: { heading: string; events: EventListItem[] }) {
+  if (events.length === 0) return null;
+
+  return (
+    <>
+      <div className="section-label">{heading}</div>
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Organization</th>
+            <th>Track</th>
+            <th>Dates</th>
+            <th>Sessions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((ev) => (
+            <tr key={ev.event_id}>
+              <td>
+                <Link to={`/events/${ev.event_id}`}>{ev.event_name}</Link>
+              </td>
+              <td>{ev.org_code}</td>
+              <td>{ev.track_name}</td>
+              {/* Each date stays whole; a multi-day range breaks at the
+                  dash rather than mid-date. */}
+              <td className="tabular">
+                <span className="nowrap">{ev.start_date}</span>
+                {ev.end_date && ev.end_date !== ev.start_date ? (
+                  <>
+                    {" – "}
+                    <span className="nowrap">{ev.end_date}</span>
+                  </>
+                ) : null}
+              </td>
+              {/* An event with no sessions yet is valid in Upcoming /
+                  In progress - em dash, not a zero. */}
+              <td className="tabular">{ev.session_count > 0 ? ev.session_count : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
 
 export function EventsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -140,33 +197,15 @@ export function EventsPage() {
       {events.status === "ready" && events.data.length === 0 && (
         <p className="muted">No events yet.</p>
       )}
-      {events.status === "ready" && events.data.length > 0 && (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Organization</th>
-              <th>Track</th>
-              <th>Dates</th>
-              <th>Sessions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.data.map((ev) => (
-              <tr key={ev.event_id}>
-                <td>{ev.event_name}</td>
-                <td>{ev.org_code}</td>
-                <td>{ev.track_name}</td>
-                <td className="tabular">
-                  {ev.start_date}
-                  {ev.end_date && ev.end_date !== ev.start_date ? ` – ${ev.end_date}` : ""}
-                </td>
-                <td className="tabular">{ev.session_count}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {events.status === "ready" &&
+        events.data.length > 0 &&
+        PHASE_GROUPS.map((g) => (
+          <EventGroup
+            key={g.phase}
+            heading={g.heading}
+            events={events.data.filter((ev) => ev.phase === g.phase)}
+          />
+        ))}
     </div>
   );
 }

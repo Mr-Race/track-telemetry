@@ -60,33 +60,22 @@ The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline and the two pre-launch reviews. Nothing else
 blocks 1.0.
-- [ ] **Fix session start_time timezone bug** (found 2026-08-03 via the
-      new event summary page - session times displayed as 9-11 PM for
-      what were actually normal 5-7 PM track sessions). Root cause:
-      `racechrono_parser.py`'s `load()`/`refresh()` compute
-      `start_time = datetime.fromtimestamp(samples[0]["ts"],
-      tz=timezone.utc)` and store that directly into the
-      timezone-naive `sessions.start_time DATETIME2(0)` column; the
-      dashboard then displays it as if it were already local, so every
-      session's displayed time is off by the local UTC offset (NJMP is
-      `America/New_York`, UTC-4 in summer - 21:00 stored is really
-      5:00 PM EDT). SPEC'd fix, not yet applied (deferred by request,
-      2026-08-03): (1) migration
-      `sql/17_track_timezone.sql` (drafted, not run) - adds
-      `dbo.tracks.iana_timezone`, backfills all 3 NJMP rows to
-      `'America/New_York'` (small manually-curated table, same pattern
-      as corners/run_groups, so a plain per-track IANA name is simpler
-      than a geospatial timezone lookup); (2) code fix in
-      `racechrono_parser.py` - convert to the track's zone via stdlib
-      `zoneinfo` (no new dependency, keeps the file's stdlib-only
-      parsing property) before storing, instead of raw UTC; (3)
-      one-time data correction for sessions already in the DB -
-      deterministic UPDATE converting each existing (wrong,
-      UTC-labeled-as-naive) `start_time` to local via its track's
-      timezone, no CSV re-ingest needed since the bug's behavior is
-      fully known. `session_date` is unaffected - it's parsed
-      independently from the CSV's own `Created` metadata field, not
-      from the UTC sample timestamp.
+- [ ] **Event 3's session numbers are wrong** (found 2026-08-09 while
+      rebuilding the event page). TNIA (event_id 3) has 3 sessions
+      numbered **4, 5, 6** rather than 1, 2, 3 - leftover numbering from
+      the duplicate-session cleanup on 2026-08-03. Worse, they aren't
+      chronological: with `start_time` now corrected, S4 ran 5:00p,
+      S6 ran 6:02p and S5 ran 7:01p. That matters beyond cosmetics -
+      the event page's "progression" tile and the whole corner story are
+      first-vs-last **by session_number**, so the day-arc is currently
+      computed against the wrong pair of sessions. `session_number` is
+      documented as "1..n within the event" and the UI labels sessions
+      `S<n>`, so the fix is to renumber event 3's sessions in
+      chronological order (`UQ_sessions_event_number` means renumbering
+      needs a temporary offset to avoid a unique-constraint collision
+      mid-update). Decide separately whether `event_summary()` should
+      order by `start_time` instead of `session_number` as a belt-and-
+      braces guard against this recurring.
 - [ ] **Backfill historical sessions** — the refresh-in-place
       `--backfill` CLI mode exists now (see Done, 2026-08-03) and has
       been run against the two historical CSVs already in `data/`
@@ -171,24 +160,6 @@ blocks 1.0.
       coordinates and zone radii, writing to the corners table.
       Replaces the manual Google Maps coordinate workflow for new
       tracks.
-- [ ] **Events list: in progress / upcoming / past split** (added
-      2026-08-02) — the events list renders one flat table today.
-      Split it into three groups using the dates already on
-      `dbo.events`: **In progress** (today between start and end,
-      inclusive — a multi-day weekend stays in progress across both
-      days), **Upcoming** (sorted soonest-first; it's a planning
-      view), **Past** (sorted most-recent-first; it's a review
-      view). Compute the group server-side as a `phase` field on the
-      `GET /api/events` rows rather than in the client, so the MCP
-      tools and the dashboard agree on what "upcoming" means. Use
-      the track's local date, not UTC — a UTC comparison flips US
-      East events a day early. Null `end_date` falls back to
-      `start_date`; empty groups collapse rather than render an
-      empty header; an event with no sessions yet is valid in
-      Upcoming/In progress with em dashes in the aggregate columns.
-      Full detail in `docs/specs/event-summary-page.md`. Independent
-      of the event summary page above — no dependency on segment
-      times, so this can land earlier.
 - [ ] **Login page on a custom domain (www.mr-race.com)** — front the
       dashboard/MCP with the owned domain instead of raw Azure URLs.
 - [ ] API Management in front of the ingest endpoint (hardening story)
@@ -293,6 +264,93 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-09 — Event summary page rebuilt against the rewritten
+      layout spec (`docs/specs/event-summary-page.md`, rewritten
+      2026-08-03 *after* the first build landed, which is why the page
+      had drifted from the approved mockup). Header now matches the
+      spec: mono eyebrow `EVENT · <ORG> · <RUN GROUP>`, event name alone
+      as the display-face title, `track · configuration · date`
+      subtitle, and session/lap pill badges (track time moved out of the
+      subtitle into a tile). Hero stats are now the spec'd **six** tiles
+      in a 2-column grid under a `HERO STATS` label - added the missing
+      Laps and Track time tiles, and a missing tile renders an em dash
+      instead of disappearing. Deltas read as one-decimal seconds
+      ("2.9s", "−1.5s") rather than the m:ss.mmm lap format. Sessions
+      table adopts the timing-screen form (`S4 · 5:00p`, right-aligned
+      mono, `WX` column) and the corner story gains its explainer line
+      and `S<first> MIN`/`S<last> MIN` column order. Weather strip moved
+      to the bottom, per the spec's section order.
+      New in the API (`queries.event_summary()`): `configuration`,
+      `run_group` (per-session field, so it only surfaces when the whole
+      event ran one group), `valid_lap_count`, `best_lap_number`, and
+      `corner_name` - the corner column now reads `T9 Lightbulb` /
+      `T10 Kink` where a name is curated, `T4` where it isn't.
+      Purple *was* built this time (AC's call): new `--fastest` token in
+      both palettes, applied to event best + event optimal and to the
+      event's best lap wherever it appears in the sessions table. The
+      spec's Barlow Condensed + IBM Plex Mono were deliberately NOT
+      added - the CSP has no `font-src` so it falls back to
+      `default-src 'self'` and Google Fonts would be blocked; instead
+      `--font-display`/`--font-mono` tokens carry system stacks, keeping
+      the display/mono split the spec calls essential. Swapping in
+      self-hosted webfonts later is a one-line token change.
+      One deliberate deviation from the literal spec (AC's call): the
+      session pace bar floors at 6% instead of 0%, because a zero-width
+      bar on the slowest session reads as missing data rather than as a
+      slow session.
+      Shared components extended rather than forked: `StatTile` gained
+      `tone` (fastest/good/bad) + `variant="hero"`; `CornerDeltaTable`
+      gained `className`, a `columnOrder` prop (the event page reads
+      left-to-right in time, the session page reads this-vs-prior), and
+      corner-name labelling. Fixed a latent crash while there -
+      `CornerDelta.min_speed_mph` was typed non-null but the server can
+      return null (both delta paths union the two laps' corner codes),
+      and the old cell did `.toFixed(1)` on it unguarded.
+      Verified: `queries.event_summary()` run against the live DB for a
+      3-session event (id 3), a single-session event (id 2, hides
+      progression + corner story), and a zero-session event (id 5, six
+      em dashes, no crash); `tsc --noEmit` and `oxlint` clean; screenshot
+      pass in **both** light and dark through a throwaway unauthenticated
+      `/preview/...` route with Playwright serving the real payloads as
+      fixtures - which is what caught the wrapping session cells, the
+      wrapping corner speeds, and the wrapping date ranges. Preview
+      routes removed afterwards; `package.json`/`package-lock.json`
+      untouched.
+- [x] 2026-08-09 — Events list temporal split (in progress / upcoming /
+      past), the separately-tracked half of the same spec. `phase` is
+      computed server-side in `queries.list_events()` via a new
+      `event_phase()` helper so the MCP tools and the dashboard agree on
+      what "upcoming" means, and rows come back already in render order
+      (in progress, then upcoming ascending, then past descending) -
+      consistent with this project's sort-server-side convention. The
+      comparison uses the track's local date, not UTC, per the spec.
+      `EventsPage.tsx` renders one table per group, empty groups
+      collapse, zero-session events show an em dash rather than a 0, and
+      event names now link through to the summary page.
+      Verified against live data: the multi-day 2026-08-08→08-09 event
+      lands in "In progress" on 2026-08-09 (the inclusive-range case the
+      spec calls out), "Summer Sizzle" (2026-08-16) in Upcoming, and the
+      four past events sort most-recent-first.
+- [x] 2026-08-09 — Fixed the session `start_time` timezone bug (v1.0
+      item, found 2026-08-03, deferred then). All three spec'd parts
+      done: (1) `sql/17_track_timezone.sql` applied to the live DB -
+      adds `dbo.tracks.iana_timezone`, all 3 NJMP rows backfilled to
+      `America/New_York`; (2) `racechrono_parser.py` now converts before
+      storing, via new `track_timezone()` + `to_track_local()` helpers
+      using stdlib `zoneinfo` (no new dependency, file stays
+      stdlib-only). Weather still gets the UTC instant - it's keyed on
+      the absolute time - while the column gets local wall-clock;
+      (3) one-time data correction applied to all 7 existing sessions
+      with a `start_time`. TNIA's sessions now read 5:00p / 7:01p /
+      6:02p instead of 9:00p / 11:01p / 10:02p, matching what was
+      actually driven. The backfill ran dry-run first and guarded on two
+      invariants before writing: every converted time must land in
+      plausible on-track hours (06:00-21:00 local) and no row's local
+      date may drift off its `session_date` - both held for all 7.
+      DST is handled by `zoneinfo`, verified both ways (a July instant
+      converts at UTC-4, a January one at UTC-5). Note the backfill is
+      deliberately NOT idempotent - running it twice would shift twice -
+      so it was a one-shot, recorded here rather than kept as a script.
 - [~] 2026-08-07 — OAuth 2.1 on the MCP server (last unauthenticated
       endpoint, tracked v1.0 item). SERVER SIDE SHIPPED & LIVE, CLAUDE
       CONNECTION BLOCKED by a known Entra↔MCP incompatibility — see

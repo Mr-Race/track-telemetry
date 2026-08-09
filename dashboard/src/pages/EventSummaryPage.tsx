@@ -5,6 +5,10 @@ import { useFetch } from "../api/useFetch";
 import { StatTile } from "../components/StatTile";
 import { CornerDeltaTable } from "../components/CornerDeltaTable";
 
+// Any hero tile whose data doesn't exist renders an em dash, never a
+// zero - a missing optimal lap is not a 0:00.000.
+const EMPTY = "—";
+
 function formatDateRange(start: string, end: string | null): string {
   return end === null || end === start ? start : `${start} – ${end}`;
 }
@@ -16,24 +20,35 @@ function formatDuration(ms: number): string {
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-function formatGap(ms: number): string {
-  return `+${(ms / 1000).toFixed(3)}s`;
+// Second-deltas on this page read as magnitudes at one decimal ("0.9s"),
+// not as the m:ss.mmm lap format.
+function formatSeconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function formatSignedGap(ms: number): string {
+function formatSignedSeconds(ms: number): string {
   const seconds = ms / 1000;
-  return seconds >= 0 ? `+${seconds.toFixed(3)}s` : `${seconds.toFixed(3)}s`;
+  // Minus sign, not hyphen - it lines up with the tabular figures.
+  return seconds < 0 ? `−${Math.abs(seconds).toFixed(1)}s` : `+${seconds.toFixed(1)}s`;
 }
 
+// "5:40p" - the compact timing-screen form, not "5:40 PM".
 function formatStartTime(startTime: string | null): string {
-  if (startTime === null) return "—";
+  if (startTime === null) return EMPTY;
   const date = new Date(startTime.replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (Number.isNaN(date.getTime())) return EMPTY;
+  const hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${hour12}:${minutes}${hours < 12 ? "a" : "p"}`;
 }
 
-// Fastest session in the event fills the bar completely; the slowest
-// is empty - a quick visual arc of how the day's pace moved.
+// The slowest session sits at the floor rather than at zero - a
+// zero-width bar reads as missing data instead of as a slow session.
+const MIN_BAR_PCT = 6;
+
+// Fastest session in the event fills the bar completely - a quick
+// visual arc of how the day's pace moved.
 function progressPct(bestLapMs: number | null, sessions: EventSessionRow[]): number {
   if (bestLapMs === null) return 0;
   const times = sessions.map((s) => s.best_lap_ms).filter((t): t is number => t !== null);
@@ -41,7 +56,164 @@ function progressPct(bestLapMs: number | null, sessions: EventSessionRow[]): num
   const fastest = Math.min(...times);
   const slowest = Math.max(...times);
   if (fastest === slowest) return 100;
-  return Math.round(((slowest - bestLapMs) / (slowest - fastest)) * 100);
+  const scaled = (slowest - bestLapMs) / (slowest - fastest);
+  return Math.round(MIN_BAR_PCT + scaled * (100 - MIN_BAR_PCT));
+}
+
+function Header({ event }: { event: EventSummary }) {
+  // EVENT - ORG - RUN GROUP; the run group drops out when the event's
+  // sessions don't share one.
+  const eyebrow = ["Event", event.org_code, event.run_group].filter(Boolean).join(" · ");
+  const subtitle = [event.track_name, event.configuration, formatDateRange(event.start_date, event.end_date)]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div>
+      <div className="event-eyebrow">{eyebrow}</div>
+      <h2 className="event-title">{event.event_name}</h2>
+      <p className="event-subtitle">{subtitle}</p>
+      <div className="badge-row">
+        <span className="badge">
+          {event.session_count} session{event.session_count === 1 ? "" : "s"}
+        </span>
+        <span className="badge">
+          {event.total_laps} lap{event.total_laps === 1 ? "" : "s"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HeroStats({ event }: { event: EventSummary }) {
+  return (
+    <>
+      <div className="section-label">Hero stats</div>
+      <div className="hero-grid">
+        <StatTile
+          variant="hero"
+          label="Event best"
+          value={event.best_lap ?? EMPTY}
+          tone={event.best_lap ? "fastest" : undefined}
+          sublabel={
+            event.best_lap_session_number !== null && event.best_lap_number !== null
+              ? `session ${event.best_lap_session_number}, lap ${event.best_lap_number}`
+              : undefined
+          }
+        />
+        <StatTile
+          variant="hero"
+          label="Event optimal"
+          value={event.optimal_lap ?? EMPTY}
+          tone={event.optimal_lap ? "fastest" : undefined}
+          sublabel="best segments, any session"
+        />
+        <StatTile
+          variant="hero"
+          label="Left on table"
+          value={event.left_on_table_ms !== null ? formatSeconds(event.left_on_table_ms) : EMPTY}
+          sublabel="best vs optimal"
+        />
+        <StatTile
+          variant="hero"
+          label="Progression"
+          value={event.progression_ms !== null ? formatSignedSeconds(event.progression_ms) : EMPTY}
+          // Negative is the day getting faster.
+          tone={
+            event.progression_ms === null
+              ? undefined
+              : event.progression_ms < 0
+                ? "good"
+                : event.progression_ms > 0
+                  ? "bad"
+                  : undefined
+          }
+          sublabel={
+            event.sessions.length >= 2
+              ? `S${event.sessions[0].session_number} best → S${
+                  event.sessions[event.sessions.length - 1].session_number
+                } best`
+              : undefined
+          }
+        />
+        <StatTile
+          variant="hero"
+          label="Laps"
+          value={event.total_laps > 0 ? String(event.total_laps) : EMPTY}
+          sublabel={event.total_laps > 0 ? `${event.valid_lap_count} valid` : undefined}
+        />
+        <StatTile
+          variant="hero"
+          label="Track time"
+          value={event.total_track_time_ms !== null ? formatDuration(event.total_track_time_ms) : EMPTY}
+          sublabel={
+            event.session_count > 0
+              ? `across ${event.session_count} session${event.session_count === 1 ? "" : "s"}`
+              : undefined
+          }
+        />
+      </div>
+    </>
+  );
+}
+
+function SessionsTable({ event }: { event: EventSummary }) {
+  return (
+    <>
+      <div className="section-label">Sessions</div>
+      {event.sessions.length === 0 ? (
+        <p className="muted">No sessions logged for this event yet.</p>
+      ) : (
+        <table className="data-table timing-table">
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Best</th>
+              <th>Avg</th>
+              <th>Optimal</th>
+              <th>WX</th>
+            </tr>
+          </thead>
+          <tbody>
+            {event.sessions.map((s) => (
+              <Fragment key={s.session_id}>
+                <tr className="session-main">
+                  <td>
+                    <Link to={`/sessions/${s.session_id}`}>
+                      S{s.session_number} &middot; {formatStartTime(s.start_time)}
+                    </Link>
+                  </td>
+                  {/* The event's best lap is purple wherever it appears. */}
+                  <td
+                    className={
+                      s.best_lap_ms !== null && s.best_lap_ms === event.best_lap_ms
+                        ? "tabular tone-fastest"
+                        : "tabular"
+                    }
+                  >
+                    {s.best_lap ?? EMPTY}
+                  </td>
+                  <td className="tabular">{s.avg_valid_lap ?? EMPTY}</td>
+                  <td className="tabular">{s.optimal_lap ?? EMPTY}</td>
+                  <td className="tabular">{s.air_temp_f !== null ? `${s.air_temp_f}°F` : EMPTY}</td>
+                </tr>
+                <tr>
+                  <td className="progress-cell" colSpan={5}>
+                    <div className="progress-bar-track">
+                      <div
+                        className="progress-bar-fill pace-fill"
+                        style={{ width: `${progressPct(s.best_lap_ms, event.sessions)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
 }
 
 function WeatherStrip({ weather }: { weather: EventSummary["weather"] }) {
@@ -67,100 +239,40 @@ export function EventSummaryPage() {
   if (state.status === "error") return <p className="delta-bad">Error: {state.message}</p>;
 
   const event = state.data;
+  const first = event.sessions[0];
+  const last = event.sessions[event.sessions.length - 1];
 
   return (
     <div>
       <p>
         <Link to="/sessions">&larr; All sessions</Link>
       </p>
-      <div className="eyebrow">{event.org_code}</div>
-      <h2>
-        {event.event_name} &mdash; {event.track_name}
-      </h2>
-      <p className="muted">
-        {formatDateRange(event.start_date, event.end_date)} · {event.session_count}{" "}
-        session{event.session_count === 1 ? "" : "s"} · {event.total_laps} laps
-        {event.total_track_time_ms !== null && ` · ${formatDuration(event.total_track_time_ms)} on track`}
-      </p>
 
-      <div className="stat-tile-row">
-        {event.best_lap && (
-          <StatTile
-            label="Event best lap"
-            value={event.best_lap}
-            sublabel={`session #${event.best_lap_session_number}`}
-          />
-        )}
-        {event.optimal_lap && (
-          <StatTile label="Event optimal lap" value={event.optimal_lap} sublabel="best segments, all sessions" />
-        )}
-        {event.left_on_table_ms !== null && (
-          <StatTile label="Left on table" value={formatGap(event.left_on_table_ms)} sublabel="best vs. optimal" />
-        )}
-        {event.progression_ms !== null && (
-          <StatTile
-            label="Progression"
-            value={formatSignedGap(event.progression_ms)}
-            sublabel="first session vs. last"
-          />
-        )}
-      </div>
+      <Header event={event} />
+      <HeroStats event={event} />
+      <SessionsTable event={event} />
 
-      <WeatherStrip weather={event.weather} />
-
-      <h3>Sessions</h3>
-      {event.sessions.length === 0 ? (
-        <p className="muted">No sessions logged for this event yet.</p>
-      ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Session</th>
-              <th>Best lap</th>
-              <th>Avg valid lap</th>
-              <th>Optimal lap</th>
-              <th>Temp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {event.sessions.map((s) => (
-              <Fragment key={s.session_id}>
-                <tr>
-                  <td>
-                    <Link to={`/sessions/${s.session_id}`}>
-                      #{s.session_number} &middot; {formatStartTime(s.start_time)}
-                    </Link>
-                  </td>
-                  <td className="tabular">{s.best_lap ?? "—"}</td>
-                  <td className="tabular">{s.avg_valid_lap ?? "—"}</td>
-                  <td className="tabular">{s.optimal_lap ?? "—"}</td>
-                  <td className="tabular">{s.air_temp_f !== null ? `${s.air_temp_f}°F` : "—"}</td>
-                </tr>
-                <tr>
-                  <td colSpan={5}>
-                    <div className="progress-bar-track">
-                      <div
-                        className="progress-bar-fill"
-                        style={{ width: `${progressPct(s.best_lap_ms, event.sessions)}%` }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {event.corner_deltas.length > 0 && (
+      {/* Single-session events have no arc to tell, so the whole
+          section is hidden rather than rendered empty. */}
+      {event.corner_deltas.length > 0 && first && last && (
         <>
-          <h3>Corner story of the day</h3>
+          <div className="section-label">Corner story</div>
+          <p className="section-note">
+            What improved from first to last session of the day — the arc of the event.
+          </p>
           <CornerDeltaTable
             deltas={event.corner_deltas}
-            labels={{ current: "Last session", prior: "First session" }}
+            labels={{
+              current: `S${last.session_number} min`,
+              prior: `S${first.session_number} min`,
+            }}
+            className="timing-table"
+            columnOrder="prior-first"
           />
         </>
       )}
+
+      <WeatherStrip weather={event.weather} />
     </div>
   );
 }

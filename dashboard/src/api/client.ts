@@ -40,7 +40,11 @@ export interface SessionDetail extends SessionListItem {
 
 export interface CornerDelta {
   corner_code: string;
-  min_speed_mph: number;
+  // Curated per track and optional - null falls back to the bare code.
+  corner_name: string | null;
+  // Null when the corner only appears in the other lap of the pair -
+  // both sides are built from a union of the two laps' corner codes.
+  min_speed_mph: number | null;
   prior_min_speed_mph: number | null;
   delta_mph: number | null;
 }
@@ -113,6 +117,8 @@ export interface Organization {
   org_name: string;
 }
 
+export type EventPhase = "in_progress" | "upcoming" | "past";
+
 export interface EventListItem {
   event_id: number;
   event_name: string;
@@ -123,6 +129,10 @@ export interface EventListItem {
   start_date: string;
   end_date: string | null;
   session_count: number;
+  // Computed server-side against the track's local date so the MCP
+  // tools and the dashboard agree on what "upcoming" means; rows
+  // arrive already in render order.
+  phase: EventPhase;
 }
 
 export interface NewEvent {
@@ -157,16 +167,20 @@ export interface EventSummary {
   event_name: string;
   track_id: number;
   track_name: string;
+  configuration: string | null;
   org_code: string;
+  run_group: string | null;
   start_date: string;
   end_date: string | null;
   session_count: number;
   total_laps: number;
+  valid_lap_count: number;
   total_track_time_ms: number | null;
   best_lap_ms: number | null;
   best_lap: string | null;
   best_lap_session_id: number | null;
   best_lap_session_number: number | null;
+  best_lap_number: number | null;
   optimal_lap_ms: number | null;
   optimal_lap: string | null;
   left_on_table_ms: number | null;

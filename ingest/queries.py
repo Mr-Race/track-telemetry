@@ -4,9 +4,25 @@ both callers query the DB the same way instead of maintaining two copies of
 the same SQL.
 """
 
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from .racechrono_parser import fmt_ms
+from .racechrono_parser import DEFAULT_TRACK_TZ, fmt_ms
+
+# Render order for the events list's temporal split (spec:
+# docs/specs/event-summary-page.md).
+_PHASE_ORDER = {"in_progress": 0, "upcoming": 1, "past": 2}
+
+
+def event_phase(start_date, end_date, iana_timezone):
+    """in_progress | upcoming | past for one event, decided against the
+    track's local date. A UTC comparison flips US East events into 'past'
+    a day early, which is why the zone is threaded through here."""
+    today = datetime.now(ZoneInfo(iana_timezone or DEFAULT_TRACK_TZ)).date()
+    last_day = end_date or start_date
+    if start_date <= today <= last_day:
+        return "in_progress"
+    return "upcoming" if start_date > today else "past"
 
 
 def list_sessions(cnx, event_id=None):
@@ -174,6 +190,16 @@ def corner_speeds_for_lap(cur, lap_id):
     return {r[0]: float(r[1]) for r in cur.fetchall()}
 
 
+def corner_names(cur, track_id):
+    """corner_code -> corner_name for one track. Names are optional and
+    curated per track (Lightning has T9 Lightbulb, T10 Kink), so only
+    named corners appear here; callers fall back to the bare code."""
+    cur.execute("""
+        SELECT corner_code, corner_name FROM dbo.corners
+        WHERE track_id = ? AND corner_name IS NOT NULL""", track_id)
+    return {r[0]: r[1] for r in cur.fetchall()}
+
+
 def compare_laps(cnx, session_id_a, session_id_b):
     cur = cnx.cursor()
 
@@ -280,11 +306,13 @@ def session_summary(cnx, session_id):
         lap_b = fastest_valid_lap(cur, prior_session_id)
         speeds_a = corner_speeds_for_lap(cur, lap_a["lap_id"])
         speeds_b = corner_speeds_for_lap(cur, lap_b["lap_id"])
+        names = corner_names(cur, track_id)
         for code in sorted(set(speeds_a) | set(speeds_b),
                             key=lambda c: (len(c), c)):
             a, b = speeds_a.get(code), speeds_b.get(code)
             corner_deltas.append({
                 "corner_code": code,
+                "corner_name": names.get(code),
                 "min_speed_mph": a,
                 "prior_min_speed_mph": b,
                 "delta_mph": (round(a - b, 1) if a is not None
@@ -361,28 +389,45 @@ def list_organizations(cnx):
 
 def list_events(cnx):
     """Every event with its org/track and how many sessions are logged
-    under it, for the dashboard's event management page."""
+    under it, for the dashboard's event management page.
+
+    Each row carries a `phase` (in_progress | upcoming | past) and the
+    rows come back already in render order - in progress, then upcoming
+    soonest-first (a planning view), then past most-recent-first (a
+    review view). Computed here rather than in the client so the MCP
+    tools and the dashboard agree on what "upcoming" means."""
     cur = cnx.cursor()
     cur.execute("""
         SELECT e.event_id, e.event_name, e.track_id, t.track_name,
                e.organization_id, o.org_code, e.start_date, e.end_date,
                (SELECT COUNT(*) FROM dbo.sessions s
-                WHERE s.event_id = e.event_id) AS session_count
+                WHERE s.event_id = e.event_id) AS session_count,
+               t.iana_timezone
         FROM dbo.events e
         JOIN dbo.tracks t ON t.track_id = e.track_id
-        JOIN dbo.organizations o ON o.organization_id = e.organization_id
-        ORDER BY e.start_date DESC, e.event_id DESC""")
-    return [
-        {
+        JOIN dbo.organizations o ON o.organization_id = e.organization_id""")
+    events = []
+    for r in cur.fetchall():
+        start, end = r[6], r[7]
+        phase = event_phase(start, end, r[9])
+        # Upcoming sorts ascending, the other two descending; negating the
+        # ordinal flips direction inside one sort key.
+        direction = 1 if phase == "upcoming" else -1
+        events.append({
+            "_sort": (_PHASE_ORDER[phase], direction * start.toordinal(),
+                      direction * r[0]),
             "event_id": r[0], "event_name": r[1],
             "track_id": r[2], "track_name": r[3],
             "organization_id": r[4], "org_code": r[5],
-            "start_date": str(r[6]),
-            "end_date": str(r[7]) if r[7] is not None else None,
+            "start_date": str(start),
+            "end_date": str(end) if end is not None else None,
             "session_count": r[8],
-        }
-        for r in cur.fetchall()
-    ]
+            "phase": phase,
+        })
+    events.sort(key=lambda e: e["_sort"])
+    for e in events:
+        del e["_sort"]
+    return events
 
 
 def event_summary(cnx, event_id):
@@ -392,7 +437,7 @@ def event_summary(cnx, event_id):
     cur = cnx.cursor()
     cur.execute("""
         SELECT e.event_id, e.event_name, e.track_id, t.track_name,
-               o.org_code, e.start_date, e.end_date
+               t.configuration, o.org_code, e.start_date, e.end_date
         FROM dbo.events e
         JOIN dbo.tracks t ON t.track_id = e.track_id
         JOIN dbo.organizations o ON o.organization_id = e.organization_id
@@ -403,10 +448,23 @@ def event_summary(cnx, event_id):
 
     event = {
         "event_id": row[0], "event_name": row[1],
-        "track_id": row[2], "track_name": row[3], "org_code": row[4],
-        "start_date": str(row[5]),
-        "end_date": str(row[6]) if row[6] is not None else None,
+        "track_id": row[2], "track_name": row[3],
+        "configuration": row[4], "org_code": row[5],
+        "start_date": str(row[6]),
+        "end_date": str(row[7]) if row[7] is not None else None,
     }
+
+    # The header eyebrow is EVENT - ORG - RUN GROUP, but the run group is
+    # a per-session field, so it only makes sense at event level when the
+    # whole event ran in one group. Mixed (or unset) collapses to null and
+    # the eyebrow drops that segment.
+    cur.execute("""
+        SELECT DISTINCT rg.group_code
+        FROM dbo.sessions s
+        JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
+        WHERE s.event_id = ?""", event_id)
+    group_codes = [r[0] for r in cur.fetchall()]
+    event["run_group"] = group_codes[0] if len(group_codes) == 1 else None
 
     cur.execute("""
         SELECT s.session_id, s.session_number, s.start_time,
@@ -451,13 +509,15 @@ def event_summary(cnx, event_id):
     event["session_count"] = len(sessions)
 
     cur.execute("""
-        SELECT COUNT(*), SUM(l.lap_time_ms)
+        SELECT COUNT(*), SUM(l.lap_time_ms),
+               SUM(CASE WHEN l.is_valid = 1 THEN 1 ELSE 0 END)
         FROM dbo.laps l
         JOIN dbo.sessions s ON s.session_id = l.session_id
         WHERE s.event_id = ?""", event_id)
-    total_laps, total_track_time_ms = cur.fetchone()
+    total_laps, total_track_time_ms, valid_laps = cur.fetchone()
     event["total_laps"] = total_laps
     event["total_track_time_ms"] = total_track_time_ms
+    event["valid_lap_count"] = valid_laps or 0
 
     cur.execute("""
         SELECT TOP 1 s.session_id, s.session_number, l.lap_number,
@@ -471,6 +531,7 @@ def event_summary(cnx, event_id):
     event["best_lap"] = fmt_ms(best_row[3]) if best_row else None
     event["best_lap_session_id"] = best_row[0] if best_row else None
     event["best_lap_session_number"] = best_row[1] if best_row else None
+    event["best_lap_number"] = best_row[2] if best_row else None
 
     cur.execute("""
         SELECT SUM(best_ms) FROM (
@@ -506,11 +567,13 @@ def event_summary(cnx, event_id):
         if lap_first and lap_last:
             speeds_first = corner_speeds_for_lap(cur, lap_first["lap_id"])
             speeds_last = corner_speeds_for_lap(cur, lap_last["lap_id"])
+            names = corner_names(cur, event["track_id"])
             for code in set(speeds_first) | set(speeds_last):
                 a, b = speeds_last.get(code), speeds_first.get(code)
                 delta = round(a - b, 1) if a is not None and b is not None else None
                 corner_deltas.append({
                     "corner_code": code,
+                    "corner_name": names.get(code),
                     "min_speed_mph": a,
                     "prior_min_speed_mph": b,
                     "delta_mph": delta,
