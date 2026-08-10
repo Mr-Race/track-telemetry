@@ -45,6 +45,25 @@ def _json_response(payload, status_code):
         mimetype="application/json")
 
 
+def _server_error():
+    """Opaque 500 for an unhandled exception.
+
+    Exception text can carry SQL fragments, driver internals and
+    connection detail, so it never reaches the caller. The caller gets a
+    short id instead, which ties their report to the traceback the
+    handler already logged - Application Insights groups both under the
+    same operation, so quoting the id is enough to find it.
+
+    Deliberate/expected errors are unaffected: ValueError branches still
+    return their own message on 400/404, because those texts are ours
+    and are the useful part of the response.
+    """
+    error_id = uuid.uuid4().hex[:12]
+    logging.error("returning 500 [error_id=%s]", error_id)
+    return _json_response(
+        {"error": "Internal server error", "error_id": error_id}, 500)
+
+
 # Read endpoints for the React dashboard (Block 4). auth_level stays
 # ANONYMOUS (that's Azure's function-key mechanism, unrelated) -
 # @require_auth validates a real MSAL-issued bearer token instead.
@@ -61,9 +80,9 @@ def list_sessions(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.list_sessions(_connect(), event_id),
                                200)
-    except Exception as exc:
+    except Exception:
         logging.exception("list_sessions failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="sessions/{session_id:int}", methods=["GET"],
@@ -76,9 +95,9 @@ def get_session_detail(req: func.HttpRequest) -> func.HttpResponse:
             queries.get_session_detail(_connect(), session_id), 200)
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 404)
-    except Exception as exc:
+    except Exception:
         logging.exception("get_session_detail failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="sessions/{session_id:int}", methods=["PATCH"],
@@ -105,9 +124,9 @@ def update_session(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"session_id": session_id, "car_id": car_id}, 200)
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 404)
-    except Exception as exc:
+    except Exception:
         logging.exception("update_session failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="sessions/{session_id:int}/summary", methods=["GET"],
@@ -120,9 +139,9 @@ def get_session_summary(req: func.HttpRequest) -> func.HttpResponse:
             queries.session_summary(_connect(), session_id), 200)
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 404)
-    except Exception as exc:
+    except Exception:
         logging.exception("get_session_summary failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="tracks", methods=["GET"],
@@ -131,9 +150,9 @@ def get_session_summary(req: func.HttpRequest) -> func.HttpResponse:
 def list_tracks(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.list_tracks(_connect()), 200)
-    except Exception as exc:
+    except Exception:
         logging.exception("list_tracks failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="tracks/{track_id:int}/satellite", methods=["GET"],
@@ -149,9 +168,9 @@ def get_track_satellite(req: func.HttpRequest) -> func.HttpResponse:
             headers={"Cache-Control": "public, max-age=86400"})
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 404)
-    except Exception as exc:
+    except Exception:
         logging.exception("get_track_satellite failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="tracks/{track_id:int}/benchmarks", methods=["GET"],
@@ -164,9 +183,9 @@ def get_track_benchmarks(req: func.HttpRequest) -> func.HttpResponse:
             queries.get_track_benchmarks(_connect(), track_id), 200)
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 404)
-    except Exception as exc:
+    except Exception:
         logging.exception("get_track_benchmarks failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="consumables", methods=["GET"],
@@ -175,9 +194,9 @@ def get_track_benchmarks(req: func.HttpRequest) -> func.HttpResponse:
 def get_consumables(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.get_consumables(_connect()), 200)
-    except Exception as exc:
+    except Exception:
         logging.exception("get_consumables failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="consumables/{consumable_id:int}/replace", methods=["POST"],
@@ -207,9 +226,9 @@ def replace_consumable(req: func.HttpRequest) -> func.HttpResponse:
         return _json_response({"consumable_id": new_id}, 201)
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 404)
-    except Exception as exc:
+    except Exception:
         logging.exception("replace_consumable failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="organizations", methods=["GET"],
@@ -218,9 +237,9 @@ def replace_consumable(req: func.HttpRequest) -> func.HttpResponse:
 def list_organizations(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.list_organizations(_connect()), 200)
-    except Exception as exc:
+    except Exception:
         logging.exception("list_organizations failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="events", methods=["GET"],
@@ -229,9 +248,9 @@ def list_organizations(req: func.HttpRequest) -> func.HttpResponse:
 def list_events(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.list_events(_connect()), 200)
-    except Exception as exc:
+    except Exception:
         logging.exception("list_events failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="events/{event_id:int}/summary", methods=["GET"],
@@ -244,9 +263,9 @@ def get_event_summary(req: func.HttpRequest) -> func.HttpResponse:
             queries.event_summary(_connect(), event_id), 200)
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 404)
-    except Exception as exc:
+    except Exception:
         logging.exception("get_event_summary failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 # First write-capable dashboard endpoint (Block 6) - protected the same
@@ -280,9 +299,9 @@ def create_event(req: func.HttpRequest) -> func.HttpResponse:
             _connect(), track_id, organization_id, event_name,
             start_date, end_date)
         return _json_response({"event_id": event_id}, 201)
-    except Exception as exc:
+    except Exception:
         logging.exception("create_event failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="cars", methods=["GET"],
@@ -291,9 +310,9 @@ def create_event(req: func.HttpRequest) -> func.HttpResponse:
 def list_cars(req: func.HttpRequest) -> func.HttpResponse:
     try:
         return _json_response(queries.list_cars(_connect()), 200)
-    except Exception as exc:
+    except Exception:
         logging.exception("list_cars failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="cars", methods=["POST"],
@@ -326,9 +345,9 @@ def create_car(req: func.HttpRequest) -> func.HttpResponse:
         car_id = queries.create_car(
             _connect(), display_name, make, model, year, notes)
         return _json_response({"car_id": car_id}, 201)
-    except Exception as exc:
+    except Exception:
         logging.exception("create_car failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()
 
 
 @app.route(route="ingest", methods=["POST"],
@@ -429,6 +448,6 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
 
     except ValueError as exc:
         return _json_response({"error": str(exc)}, 400)
-    except Exception as exc:
+    except Exception:
         logging.exception("ingest failed")
-        return _json_response({"error": str(exc)}, 500)
+        return _server_error()

@@ -23,19 +23,85 @@ SQL_SCOPE = "https://database.windows.net/.default"
 LOGIN_TIMEOUT_S = 60
 
 
+def qmark_to_pyformat(sql):
+    """Convert ?-style placeholders to the %s form pytds expects.
+
+    This walks the statement rather than doing a blind str.replace,
+    because two things are not placeholders and must survive untouched:
+
+      - a '?' inside a string literal, a bracketed identifier, or a
+        comment
+      - a literal '%', which pytds would otherwise read as the start of
+        a format specifier once it interpolates - so every '%' in the
+        statement is doubled
+
+    Neither case exists in the current queries, which is exactly why the
+    old blind replace worked. It relied on an unenforced invariant
+    across ~800 lines of SQL, and the failure mode was a silently
+    altered query rather than an error, so the invariant is enforced
+    here instead of being documented and hoped for.
+
+    Only called when parameters are actually supplied; a statement with
+    no parameters is passed through untouched (pytds skips
+    interpolation entirely in that case, so doubling '%' there would
+    leave literal '%%' in the SQL).
+    """
+    out = []
+    i, n = 0, len(sql)
+    while i < n:
+        ch = sql[i]
+        if ch == "'":
+            # String literal; '' is an escaped quote, not a terminator.
+            j = i + 1
+            while j < n:
+                if sql[j] == "'":
+                    if j + 1 < n and sql[j + 1] == "'":
+                        j += 2
+                        continue
+                    break
+                j += 1
+            out.append(sql[i:j + 1].replace("%", "%%"))
+            i = j + 1
+        elif ch == "[":
+            # Bracketed identifier, e.g. [my?column].
+            j = sql.find("]", i)
+            j = n - 1 if j == -1 else j
+            out.append(sql[i:j + 1].replace("%", "%%"))
+            i = j + 1
+        elif sql.startswith("--", i):
+            j = sql.find("\n", i)
+            j = n if j == -1 else j
+            out.append(sql[i:j].replace("%", "%%"))
+            i = j
+        elif sql.startswith("/*", i):
+            j = sql.find("*/", i)
+            j = n if j == -1 else j + 2
+            out.append(sql[i:j].replace("%", "%%"))
+            i = j
+        elif ch == "?":
+            out.append("%s")
+            i += 1
+        elif ch == "%":
+            out.append("%%")
+            i += 1
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
 class _QmarkCursor:
     """Wraps a pytds cursor to accept the ?-style placeholders used by
-    fetch_corners()/load() in racechrono_parser.py. pytds itself only
-    accepts %s (pyformat) placeholders - none of the shared queries
-    contain literal '?' outside of placeholder position, so a plain
-    text substitution is safe here.
+    ingest/queries.py and racechrono_parser.py, which pytds does not
+    understand - it takes %s (pyformat) instead.
     """
 
     def __init__(self, cursor):
         self._cursor = cursor
 
     def execute(self, sql, *params):
-        self._cursor.execute(sql.replace("?", "%s"), params or None)
+        self._cursor.execute(
+            qmark_to_pyformat(sql) if params else sql, params or None)
         return self
 
     def __getattr__(self, name):

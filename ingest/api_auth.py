@@ -9,6 +9,7 @@ hand-rolled here - getting that wrong is a real security risk.
 
 import functools
 import json
+import logging
 import os
 
 import azure.functions as func
@@ -42,7 +43,12 @@ def validate_bearer_token(auth_header):
             token, signing_key, algorithms=["RS256"],
             audience=CLIENT_ID, issuer=ISSUER)
     except jwt.PyJWTError as exc:
-        raise AuthError(f"invalid token: {exc}") from exc
+        # The reason category ("invalid token") is all the caller gets:
+        # PyJWT's message distinguishes bad signature from wrong audience
+        # from expired, which tells an unauthenticated prober exactly
+        # which check to work on next. The detail goes to the log.
+        logging.warning("bearer token rejected: %s", type(exc).__name__)
+        raise AuthError("invalid token") from exc
 
     # aud/iss/signature only prove "a token this API's JWKS can verify" -
     # without this, any token scoped to this app registration for any

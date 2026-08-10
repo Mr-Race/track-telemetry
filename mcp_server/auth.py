@@ -12,10 +12,13 @@ JWKS fetch/cache/rotation is delegated to PyJWT's PyJWKClient rather
 than hand-rolled - getting that wrong is a real security risk.
 """
 
+import logging
 import os
 
 import jwt
 from mcp.server.auth.provider import AccessToken, TokenVerifier
+
+log = logging.getLogger(__name__)
 
 # Separate from the dashboard's MSAL_TENANT_ID/MSAL_CLIENT_ID even though
 # the tenant value is identical: the client id differs (distinct app
@@ -52,8 +55,13 @@ class EntraTokenVerifier(TokenVerifier):
     """Verifies CIAM-issued bearer tokens for the MCP resource server."""
 
     async def verify_token(self, token: str) -> AccessToken | None:
-        print(f"[MCP-AUTH-DEBUG] verify_token called, token_len={len(token)}",
-              flush=True)  # TEMP DEBUG - remove after connector verified
+        # Diagnostics here are deliberately narrow. They sit at DEBUG so
+        # they are off in normal operation, they record the *type* of a
+        # decode failure rather than its message (messages can quote
+        # token content), and they never record `sub`, `scp` values or
+        # any token-derived length. `aud`/`iss` are app-level identifiers
+        # and are kept because the open Entra connector problem is an
+        # audience mismatch and is undiagnosable without them.
         try:
             signing_key = _jwks_client.get_signing_key_from_jwt(token).key
             claims = jwt.decode(
@@ -63,8 +71,7 @@ class EntraTokenVerifier(TokenVerifier):
             # Any failure (bad signature, wrong aud/iss, expired) -> the
             # SDK turns a None here into a 401 with a WWW-Authenticate
             # header pointing at the protected-resource metadata.
-            print(f"[MCP-AUTH-DEBUG] REJECTED at decode: {type(exc).__name__}: {exc}",
-                  flush=True)  # TEMP DEBUG
+            log.debug("token rejected at decode: %s", type(exc).__name__)
             return None
 
         # aud/iss/signature only prove "a token this resource's JWKS can
@@ -74,15 +81,11 @@ class EntraTokenVerifier(TokenVerifier):
         # a mis-scoped token is rejected outright.
         scopes = claims.get("scp", "").split()
         if REQUIRED_SCOPE not in scopes:
-            print(f"[MCP-AUTH-DEBUG] REJECTED missing scope. "
-                  f"aud={claims.get('aud')!r} iss={claims.get('iss')!r} "
-                  f"scp={claims.get('scp')!r} roles={claims.get('roles')!r}",
-                  flush=True)  # TEMP DEBUG
+            log.debug("token rejected: required scope absent (aud=%r)",
+                      claims.get("aud"))
             return None
 
-        print(f"[MCP-AUTH-DEBUG] ACCEPTED aud={claims.get('aud')!r} "
-              f"iss={claims.get('iss')!r} scp={claims.get('scp')!r} "
-              f"sub={claims.get('sub')!r}", flush=True)  # TEMP DEBUG
+        log.debug("token accepted (aud=%r)", claims.get("aud"))
 
         # Return the qualified scope so the SDK's RequireAuthMiddleware,
         # whose required_scopes is set to QUALIFIED_SCOPE (to drive the
