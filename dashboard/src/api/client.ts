@@ -220,17 +220,37 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 // signed-out caller just gets null here and the API 401s - client.ts
 // doesn't need its own "not signed in" error path.
 async function getAccessToken(): Promise<string | null> {
-  const account = msalInstance.getActiveAccount();
-  if (!account) return null;
+  // Fall back to any cached account: restoreActiveAccount() in
+  // msalInstance.ts adopts one at boot, but not depending on that
+  // ordering is cheap insurance.
+  const account =
+    msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0] ?? null;
+
+  if (!account) {
+    throw new Error(
+      "Not signed in: no account in the MSAL cache. Sign out and back in.",
+    );
+  }
 
   try {
     const result = await msalInstance.acquireTokenSilent({ ...apiRequest, account });
     return result.accessToken;
   } catch (err) {
+    // This used to `return null`, which sent the request with no
+    // Authorization header and got a bare 401 back - so the app looked
+    // signed in, loaded nothing, and said nothing about why. A failure
+    // to get a token is an error, not an empty result.
+    console.error("[auth] acquireTokenSilent failed", err);
+
     if (err instanceof InteractionRequiredAuthError) {
+      // Genuinely needs the user: hand off to a redirect.
       await msalInstance.acquireTokenRedirect(apiRequest);
+      return null;
     }
-    return null;
+
+    const detail =
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    throw new Error(`Could not acquire an access token - ${detail}`);
   }
 }
 

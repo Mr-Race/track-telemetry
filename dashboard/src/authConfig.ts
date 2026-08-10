@@ -26,6 +26,22 @@ export const msalConfig: Configuration = {
   cache: {
     cacheLocation: "localStorage",
   },
+  system: {
+    // MSAL swallows a lot of detail by default. When token acquisition
+    // fails the app can only report "no token"; the reason lives in
+    // here. Errors and warnings only, and PII stays off, so this is
+    // safe to leave on permanently - the alternative is being blind the
+    // next time sign-in breaks in production.
+    loggerOptions: {
+      piiLoggingEnabled: false,
+      loggerCallback: (level: number, message: string, containsPii: boolean) => {
+        if (containsPii) return;
+        // 0 = Error, 1 = Warning in msal-browser's LogLevel.
+        if (level === 0) console.error("[msal]", message);
+        else if (level === 1) console.warn("[msal]", message);
+      },
+    },
+  },
 };
 
 // Requesting the API scope alongside openid/profile at sign-in means
