@@ -74,6 +74,23 @@ assumption is the same kind of thing. Reviewed 2026-08-10.
   name-resolution logic, not that a real PID-0x49 export parses.
   Blocked on getting `session_20260810_071257_v3.csv` off the phone.
 
+**Live UX problem, measured 2026-08-10:** the first requests after the
+database has auto-paused take **~47 seconds** (48.7s, 47.7s, 46.7s
+measured on `list_sessions`, `list_tracks`, `get_consumables`). The
+free-tier serverless DB resumes in 30-60s, and because a new connection
+is opened per request (issue #16) each concurrent call pays it
+separately rather than sharing one resume. To a user this is
+indistinguishable from the app being broken — it is what made the auth
+incident look unresolved after it had been fixed. Fixing #16 would let
+one resume cover the page; a keep-warm ping or a loading state that
+says "waking the database" would address the perception.
+
+**No JavaScript test runner.** The dashboard has none, so
+`restoreActiveAccount()` — written to take its instance as a parameter
+precisely so it could be stubbed — is untested, and CI's lint/typecheck/
+build would not catch a repeat of the auth bug. The whole class of
+client-side auth failure is currently untestable.
+
 **Coverage gaps:**
 - `ingest/queries.py` has no tests at all — ~800 lines of SQL, and the
   single largest untested surface. Needs a throwaway DB or a much
@@ -398,6 +415,42 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — **Production incident: signed in, every API call
+      401, no data.** Fixed and confirmed (200s in App Insights, zero
+      token rejections, zero exceptions).
+      Root cause: MSAL only raises `LOGIN_SUCCESS` on a *fresh*
+      sign-in, and the event callback in `msalInstance.ts` was the only
+      thing setting the active account. On a page reload the session is
+      restored from cache and no event fires, so nothing set it. The
+      two ideas of "signed in" then disagreed —
+      `useIsAuthenticated()`/`AuthenticatedTemplate` look at ALL
+      accounts so the UI rendered as signed in, while
+      `getAccessToken()` asks for the ACTIVE account, got null, and
+      sent every request with no Authorization header.
+      Latent, not a regression: `msal-browser` was untouched that day.
+      It surfaces whenever a session is restored from cache rather than
+      created fresh, which is why signing in again worked around it.
+      Fixes: `restoreActiveAccount()` adopts a cached account at boot
+      (after `initialize()`, before first render), plus a
+      `getAllAccounts()` fallback in `getAccessToken()`.
+      **The diagnosis came from the morning's Application Insights
+      work.** `api_auth.py` logs "bearer token rejected" when a token
+      is sent and fails; there were exactly two entries all day, both
+      from my own probe tokens at 15:27. No real token had ever been
+      rejected, which ruled out the server and pointed at the client.
+      Before that wiring the same question was unanswerable.
+      **Second defect found on the way, arguably worse than the first:**
+      `getAccessToken()` returned `null` on *any* token failure, so
+      every possible cause produced one identical symptom — no header,
+      bare 401, no explanation. That is why the first fix could not be
+      confirmed or ruled out. It now throws with the MSAL error name
+      and message, and MSAL's own logger is enabled at error/warning
+      with PII off. A failure to get a token is an error, not an empty
+      result.
+      Honest limit: with both fixes deployed close together and CDN
+      propagation in between, **which one restored service was never
+      isolated.** Both are correct independently, so this was not
+      chased further.
 - [x] 2026-08-10 — Event sessions now order by `start_time`, not
       `session_number` (AC's decision). The page's premise is the arc
       of a day — progression and the corner story compare first to last
