@@ -494,7 +494,21 @@ def event_summary(cnx, event_id):
             ) best_segments
         ) opt_agg
         WHERE s.event_id = ?
-        ORDER BY s.session_number""", event_id)
+        -- Chronological, not by session_number. This page's whole
+        -- premise is the arc of a day: the progression tile and the
+        -- corner story compare the FIRST session to the LAST, so what
+        -- matters is which ran first, not which was numbered first.
+        -- session_number is documented as 1..n within the event but
+        -- nothing enforces it, and when event 3's numbering was wrong
+        -- (2026-08-10) the page silently compared the wrong pair rather
+        -- than erroring. Ordering by time removes that failure mode
+        -- without hiding it: rows are still labelled S<n>, so bad
+        -- numbering shows up as S3, S1, S2 on screen.
+        -- NULLs last: a session with no start_time has no position in
+        -- the day, so it sorts to the end rather than pretending to be
+        -- first. session_number is the tie-break.
+        ORDER BY CASE WHEN s.start_time IS NULL THEN 1 ELSE 0 END,
+                 s.start_time, s.session_number""", event_id)
     sessions = [
         {
             "session_id": r[0], "session_number": r[1],
