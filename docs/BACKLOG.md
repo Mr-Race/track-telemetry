@@ -93,22 +93,16 @@ blocks 1.0.
       page entry, so a future wide element fails loudly instead of
       being found by eye. Note `overflow-x: hidden` on `body` is NOT
       the fix — it hides the symptom and silently clips content.
-- [ ] **Event 3's session numbers are wrong** (found 2026-08-09 while
-      rebuilding the event page). TNIA (event_id 3) has 3 sessions
-      numbered **4, 5, 6** rather than 1, 2, 3 - leftover numbering from
-      the duplicate-session cleanup on 2026-08-03. Worse, they aren't
-      chronological: with `start_time` now corrected, S4 ran 5:00p,
-      S6 ran 6:02p and S5 ran 7:01p. That matters beyond cosmetics -
-      the event page's "progression" tile and the whole corner story are
-      first-vs-last **by session_number**, so the day-arc is currently
-      computed against the wrong pair of sessions. `session_number` is
-      documented as "1..n within the event" and the UI labels sessions
-      `S<n>`, so the fix is to renumber event 3's sessions in
-      chronological order (`UQ_sessions_event_number` means renumbering
-      needs a temporary offset to avoid a unique-constraint collision
-      mid-update). Decide separately whether `event_summary()` should
-      order by `start_time` instead of `session_number` as a belt-and-
-      braces guard against this recurring.
+- [ ] **Decide whether `event_summary()` should order sessions by
+      `start_time` rather than `session_number`** (left over from the
+      2026-08-10 event 3 renumbering, see Done). The data is correct
+      now, but the page still trusts `session_number` to be
+      chronological. That invariant is real (`1..n within the event`)
+      yet nothing enforces it, and when it broke the page silently
+      compared the wrong pair of sessions rather than erroring. Ordering
+      by `start_time` would be belt-and-braces; the counter-argument is
+      that it hides a genuine data problem instead of surfacing it. Not
+      urgent - just undecided.
 - [ ] **Parser must accept the `accelerator_pos` OBD channel**
       (GitHub issue #8, raised 2026-08-10 — tracked there in full,
       summarized here because it gates the backfill item below).
@@ -382,6 +376,56 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — Content-hash idempotency on the HTTP ingest path
+      (GitHub issue #3, closed). Re-POSTing the same CSV created a
+      second session - it happened for real (session 14 duplicating
+      session 6, deleted 2026-08-03).
+      The obvious fix was to reuse `find_existing_session()`, which
+      matches on `source_file` - and it would not have worked. The iOS
+      Shortcut sends `filename` only optionally, and without it the
+      route invents `session_<epoch>.csv`, unique per upload. Five of
+      the seven sessions in the DB carry exactly that generated name,
+      so filename matching would never have caught the duplicate that
+      actually occurred. Worth remembering as a pattern: the existing
+      helper looked like the answer and wasn't, and only checking the
+      real data showed it.
+      So: `sql/18` adds `sessions.source_sha256` plus a filtered unique
+      index on `(event_id, source_sha256)`, applied live in two batches
+      per the ALTER/GO rule. A re-upload now refreshes the session it
+      already owns, keeping its `session_number` instead of taking the
+      next one, and skips the blob write since the original is already
+      archived. `refresh()` COALESCEs the hash so a CLI `--backfill`
+      refresh, which matches on filename and passes no hash, can't
+      blank it. Backfilled hashes for the two sessions whose original
+      CSV is in `data/`, so the pending historical backfill is covered;
+      verified the lookup round-trips for both, with a negative control.
+- [x] 2026-08-10 — Renumbered event 3's sessions into chronological
+      order (4,5,6 -> 1,2,3). Leftovers from the duplicate cleanup, and
+      out of time order, so the event page's progression tile and corner
+      story - both first-vs-last **by session_number** - were comparing
+      the wrong pair. Not cosmetic: progression was -1.485s measured
+      17:00 -> 18:02, and is actually **-1.841s** measured 17:00 ->
+      19:01; the corner story's biggest mover changed from T4 +5.3 to
+      T4 +3.3. Best laps now read as a real day arc: 1:26.816 ->
+      1:25.331 -> 1:24.975. The renumber script offsets by +100 first
+      when the old and new ranges overlap (`UQ_sessions_event_number`
+      would collide mid-update); here they were disjoint so it applied
+      directly, but the guard stays for the next time.
+- [x] 2026-08-10 — Merged the two open dependabot PRs: react-router /
+      react-router-dom 7.18.1 -> 7.18.2 (#7) and postcss 8.5.22 ->
+      8.5.26 (#6, which carries the "do not load source map without
+      opts.from" security fix). Both squash-merged despite being based
+      on a commit from 2026-08-07 and both touching the lockfile.
+      `npm audit` now reports 0 vulnerabilities, clearing the "1 high,
+      1 moderate" GitHub was warning about on every push.
+      Verified beyond "it builds": `npm ci`, strict typecheck, lint and
+      build all clean, then a browser smoke test, because react-router
+      is a *runtime* dependency and a green build says nothing about
+      whether routing still works. Confirmed the landing page renders
+      and a client-side navigation to a protected route redirects, with
+      no page errors. Note `npm ci` removes the unsaved `playwright-core`
+      used for that check - reinstall with `--no-save` so the manifests
+      stay clean.
 - [x] 2026-08-10 — Closed the three security-relevant findings from the
       engineering review (S-1, S-2, S-3 — detail in `.local/`, not here;
       this repo is public). Commit `8dde245`; Function App and MCP
