@@ -322,6 +322,41 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-09 — Engineering review findings filed as GitHub issues
+      (#9-#28) and the first two high-severity ones fixed.
+      **Finding #2, Application Insights (issue #9) — CLOSED.** There
+      was no App Insights component in the resource group at all, so
+      `host.json`'s logging block was inert and every
+      `logging.exception()` in the ingest path went nowhere. Created
+      `appi-track-telemetry` (workspace-based, bound to the existing
+      Log Analytics workspace `workspace-racktelemetryLUkB` so Function
+      and Container App telemetry land in one place) and set
+      `APPLICATIONINSIGHTS_CONNECTION_STRING` on
+      `func-track-telemetry-ingest`. Had to create it via `az rest`
+      against ARM: `az monitor` fails to load on this CLI version
+      ("Error loading command module 'monitor'"), the same class of bug
+      already recorded for `az maps`. Verified live: `AppRequests` shows
+      per-function rows with result codes, and `AppTraces` shows the
+      host's per-invocation logs, which is the channel
+      `logging.exception()` writes to. `AppExceptions` is empty because
+      no exception occurred - deliberately did NOT force a production
+      500 to populate it, so that specific path is wired-and-inferred
+      rather than observed.
+      **Finding #4, TypeScript strict (issue #10) — CLOSED.** `strict`
+      was unset in every tsconfig, so `strictNullChecks` was off and the
+      `| null` types in `api/client.ts` were unenforced. Set
+      `"strict": true` in `tsconfig.app.json`; **the codebase compiled
+      with zero errors** and `npm run build` passes. Confirmed strict is
+      genuinely active (not silently ignored) with a throwaway probe
+      that now correctly fails `TS18047`.
+      Correction worth recording: the review originally justified this
+      finding with the `min_speed_mph` crash fixed the same day, saying
+      strict would have caught it. It wouldn't have - that field was
+      typed `number`, so `.toFixed()` type-checks under strict too; the
+      bug was the wrong annotation. The finding stands (the annotations
+      were unenforced) but its value is prospective, not a defect it
+      was actively masking. See the "Correction: finding #4" section in
+      `docs/specs/engineering-review.md`.
 - [x] 2026-08-09 — Corner story now sorts in lap order (T1, T2, … T10)
       instead of |Δ| descending, per AC — the table reads as a walk
       around the circuit in the order it's driven. Spec updated in the

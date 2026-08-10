@@ -104,7 +104,7 @@ opportunistically. Effort is S (< half a day), M (1-2 days), L (more).
 | 1 | Testing | **High** | No automated tests exist. `git ls-files` matches no test file; 2,400 lines of Python and 12 React components have never been exercised except by hand. | Pytest suite over the pure functions, fixtures from `data/`. | M |
 | 2 | Observability | **High** | **No Application Insights at all** — not merely unconfigured: there is no App Insights component in resource group `Track-telemetry`, and no `APPLICATIONINSIGHTS_CONNECTION_STRING` on the Function App. `host.json`'s `logging.applicationInsights` block is therefore inert, and every `logging.exception()` in `function_app.py` goes nowhere. The production ingest path — the write path into the system of record — is unobservable. | Create the component, wire the connection string, verify a real exception surfaces. | S |
 | 3 | Error handling | **High** | The HTTP ingest route has **no idempotency**. `find_existing_session()` exists and is used by the CLI `--backfill` path, but `function_app.py`'s `ingest` never calls it — it always `load()`s a new row. Re-POSTing the same CSV silently creates a duplicate session. This is not theoretical: a duplicate was found and deleted on 2026-08-03. | Look up by `(event_id, source_file)` — or better a content hash — and `refresh()` instead of `load()`. | S |
-| 4 | Testing | **High** | **TypeScript `strict` is not set in any tsconfig**, so `strictNullChecks` is off (verified via `tsc --showConfig`). Every `\| null` in `api/client.ts` is decorative — the compiler will not reject `.toFixed()` on a nullable value. Finding #12's real crash was invisible to `tsc --noEmit`, which is the dashboard's only automated check. | Set `"strict": true`, fix the resulting errors. | M |
+| 4 | Testing | **High** ([corrected](#correction-finding-4)) | **TypeScript `strict` is not set in any tsconfig**, so `strictNullChecks` is off (verified via `tsc --showConfig`). Every `\| null` in `api/client.ts` is decorative — the compiler will not reject a genuine null flow, and `tsc --noEmit` is the dashboard's only automated check. | Set `"strict": true`, fix the resulting errors. | M |
 | 5 | Migrations | **High** | No record of which migrations have run. 17 files in `sql/`, 13 tables live, and **no migrations-tracking table in the database**. Which scripts have been applied is held in memory and the Done log; drift is detected only when something breaks. `sql/17` was found unapplied today purely by inspection. | A `dbo.schema_migrations` table + a small apply script that records each filename. | M |
 | 6 | CI/CD | Medium | No CI whatsoever — no `.github/` directory. Lint, typecheck, build, and tests (once they exist) run only when someone remembers. | GitHub Actions on push: `oxlint`, `tsc -b`, `pytest`. | S |
 | 7 | Dependencies | Medium | Most Python dependencies are entirely unpinned: `azure-functions`, `azure-identity`, `azure-storage-blob`, `python-tds`, `PyJWT[crypto]`, `certifi` carry no constraint in either requirements file. The only bounds present (`mcp<2.0.0`, `pyOpenSSL>=26.2`) were each added *reactively after a production break*. There is no lockfile, so two deploys of the same commit can install different code. | Pin with hashes (`pip-compile`), add a scheduled bump PR. | M |
@@ -123,6 +123,44 @@ opportunistically. Effort is S (< half a day), M (1-2 days), L (more).
 | 20 | Testing | Low | `compute_corner_metrics` collects *all* in-zone samples for a lap into one `inside` list. If a layout passes the same apex twice in a lap, both passes merge — entry from the first, exit from the second, apex the global minimum. | Segment by contiguous runs; test with a synthetic double-pass. | M |
 | 21 | Structure | Low | `DEFAULT_CAR_ID = 2` hardcodes a database row id into application code, and `function_app.py` repeats the same try/except/`_json_response` block ~15 times. | Config setting; a decorator for the error envelope. | S |
 | 22 | CI/CD | Low | Deploys are hand-run `func publish` / SWA CLI commands, and correctness is confirmed by manually curling prod. The verification steps that matter (Container Apps revision health, a real 401 rather than a crash) live in the Done log and in memory, not in code. | Encode as a deploy workflow with post-deploy smoke checks. | M |
+
+### Correction: finding #4
+Recorded 2026-08-09, after fixing it.
+
+As originally written, finding #4 justified itself with the
+`CornerDelta.min_speed_mph` crash fixed earlier that day, claiming it
+was invisible to `tsc` because strict was off. **That was wrong.** That
+field was declared `number` (non-null), so `.toFixed()` on it
+type-checks under strict too — the defect was the inaccurate
+annotation, not the compiler setting. Strict would not have caught it.
+
+The finding itself stands: the `| null` annotations were genuinely
+unenforced. But enabling `"strict": true` produced **zero errors**
+across the whole dashboard — the code had been written null-safely by
+discipline, not by enforcement. So the honest reading is that this was
+a cheap guard worth putting in place, not a high-severity defect that
+was actively hurting. Severity left as filed for traceability.
+
+### Finding → issue index
+Filed 2026-08-09. This doc stays the index; the issues carry the work.
+
+| Finding | Issue | Finding | Issue |
+|---|---|---|---|
+| #1 tests | [#11](https://github.com/Mr-Race/track-telemetry/issues/11) | #12 unsorted samples | [#19](https://github.com/Mr-Race/track-telemetry/issues/19) |
+| #2 App Insights | [#9](https://github.com/Mr-Race/track-telemetry/issues/9) | #13 debug prints | [#20](https://github.com/Mr-Race/track-telemetry/issues/20) |
+| #3 ingest idempotency | [#3](https://github.com/Mr-Race/track-telemetry/issues/3) (pre-existing) | #14 ALTER/GO | [#21](https://github.com/Mr-Race/track-telemetry/issues/21) |
+| #4 TS strict | [#10](https://github.com/Mr-Race/track-telemetry/issues/10) | #15 event-resolution tests | folded into [#11](https://github.com/Mr-Race/track-telemetry/issues/11) |
+| #5 migration tracking | [#12](https://github.com/Mr-Race/track-telemetry/issues/12) | #16 stale README | [#24](https://github.com/Mr-Race/track-telemetry/issues/24) |
+| #6 CI | [#14](https://github.com/Mr-Race/track-telemetry/issues/14) | #17 no dev docs | [#25](https://github.com/Mr-Race/track-telemetry/issues/25) |
+| #7 dependencies | [#13](https://github.com/Mr-Race/track-telemetry/issues/13) | #18 external-call resilience | [#26](https://github.com/Mr-Race/track-telemetry/issues/26) |
+| #8 malformed CSV rows | [#15](https://github.com/Mr-Race/track-telemetry/issues/15) | #19 median | [#22](https://github.com/Mr-Race/track-telemetry/issues/22) |
+| #9 connections | [#16](https://github.com/Mr-Race/track-telemetry/issues/16) | #20 double-pass corner | [#23](https://github.com/Mr-Race/track-telemetry/issues/23) |
+| #10 leaked `str(exc)` | [#17](https://github.com/Mr-Race/track-telemetry/issues/17) | #21 hardcoded car / boilerplate | [#27](https://github.com/Mr-Race/track-telemetry/issues/27) |
+| #11 qmark replace | [#18](https://github.com/Mr-Race/track-telemetry/issues/18) | #22 deploy automation | [#28](https://github.com/Mr-Race/track-telemetry/issues/28) |
+
+Note finding #3 was already filed on 2026-08-03 as issue #3, from the
+duplicate-session incident itself — the review independently found the
+same root cause by reading the code.
 
 ### Reading of the result
 
