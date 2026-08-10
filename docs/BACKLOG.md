@@ -151,16 +151,18 @@ blocks 1.0.
       page entry, so a future wide element fails loudly instead of
       being found by eye. Note `overflow-x: hidden` on `body` is NOT
       the fix — it hides the symptom and silently clips content.
-- [ ] **Decide whether `event_summary()` should order sessions by
-      `start_time` rather than `session_number`** (left over from the
-      2026-08-10 event 3 renumbering, see Done). The data is correct
-      now, but the page still trusts `session_number` to be
-      chronological. That invariant is real (`1..n within the event`)
-      yet nothing enforces it, and when it broke the page silently
-      compared the wrong pair of sessions rather than erroring. Ordering
-      by `start_time` would be belt-and-braces; the counter-argument is
-      that it hides a genuine data problem instead of surfacing it. Not
-      urgent - just undecided.
+- [ ] **Event 1's sessions are numbered out of chronological order**
+      (found 2026-08-10 by the ordering change, see Done). Numbered
+      S1, S4, S3 by time — S4 ran 09:51 on 05-17, S3 ran 15:52. The
+      page is now correct regardless (it orders by `start_time`), but
+      the labels read `1, 4, 3` on screen, which is the visible tell
+      that the numbering is wrong.
+      **Deliberately not renumbered yet**, unlike event 3: one of these
+      is the instructor-driven session in GitHub issue #2 (session_id
+      13, best lap 1:21.837 — the lap AC didn't drive). Reassigning the
+      driver may change whether that session belongs in the event at
+      all, and renumbering first would just have to be redone. Fix #2
+      first, then renumber.
 - [ ] **Parser must accept the `accelerator_pos` OBD channel**
       (GitHub issue #8, raised 2026-08-10 — tracked there in full,
       summarized here because it gates the backfill item below).
@@ -396,6 +398,29 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — Event sessions now order by `start_time`, not
+      `session_number` (AC's decision). The page's premise is the arc
+      of a day — progression and the corner story compare first to last
+      — so what matters is which ran first, not which was numbered
+      first. NULLs sort last (a session with no start_time has no
+      position in the day), `session_number` is the tie-break.
+      The worry when this was deferred was that ordering by time would
+      *hide* a numbering problem rather than surface it. It doesn't:
+      rows are still labelled `S<n>`, so bad numbering now shows on
+      screen as `S3, S1, S2` instead of producing a quietly wrong
+      number. Correct computation and a visible anomaly, not a trade.
+      **It found a second instance immediately.** Event 1 is numbered
+      S1, S4, S3 in time order, so its progression tile had been
+      measuring 14:11 -> 09:51 against a session that wasn't the day's
+      last. Now -1.684s, 14:11 -> 15:52. Event 3 had been fixed by
+      renumbering earlier the same day; nobody had thought to check
+      whether it was the only one. Left as an open item rather than
+      renumbered, because one of event 1's sessions is the
+      instructor-driven one in issue #2.
+      Not unit-tested: the ordering lives in SQL and `queries.py` has
+      no coverage (a known gap). Verified against the live DB across
+      all four events instead, asserting chronological order and
+      flagging label anomalies.
 - [x] 2026-08-10 — CI, and making the practices front-facing (issue
       #14). Prompted by AC asking whether the infosec and engineering
       practices were actually *embedded* — the honest answer was no.
