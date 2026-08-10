@@ -444,6 +444,30 @@ def find_existing_session(cnx, event_id, source_filename):
     return row[0] if row else None
 
 
+def find_session_by_content(cnx, event_id, source_sha256):
+    """Session already loaded from this exact file *content*.
+
+    The filename-based lookup above only helps when the caller supplies
+    a stable name. The iOS Shortcut sends `filename` optionally, and
+    without it the ingest route invents `session_<epoch>.csv` - unique
+    on every upload - so a re-upload looked like a brand new session.
+    That is how session 14 duplicated session 6 (GitHub issue #3).
+    Hashing the body makes the check independent of what the client
+    calls the file.
+
+    Returns (session_id, session_number) or None. The session_number
+    matters: a re-upload must refresh the row it already owns rather
+    than taking the next number in the event.
+    """
+    cur = cnx.cursor()
+    cur.execute("""
+        SELECT session_id, session_number FROM dbo.sessions
+        WHERE event_id = ? AND source_sha256 = ?""",
+        event_id, source_sha256)
+    row = cur.fetchone()
+    return (row[0], row[1]) if row else None
+
+
 def fetch_session_weather(cnx, event_id, start_time):
     """Best-effort weather lookup via Open-Meteo, keyed on the event's
     track location (corner apex centroid) and the session's start
@@ -502,7 +526,7 @@ def _insert_children(cur, session_id, laps, metrics, segments):
 
 
 def load(cnx, event_id, session_number, source_filename, meta, samples,
-         laps, metrics, car_id=None, segments=None):
+         laps, metrics, car_id=None, segments=None, source_sha256=None):
     session_date = parse_session_date(meta)
     # Weather is keyed on the absolute instant, so it takes the UTC
     # value; the column stores local track time.
@@ -515,13 +539,13 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
         INSERT INTO dbo.sessions
             (event_id, session_number, session_date, start_time,
              source_file, car_id, weather, air_temp_f, humidity_pct,
-             wind_mph, precip_in, weather_observed_at)
+             wind_mph, precip_in, weather_observed_at, source_sha256)
         OUTPUT INSERTED.session_id
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         event_id, session_number, session_date, start_time,
         source_filename, car_id, w["weather"], w["air_temp_f"],
         w["humidity_pct"], w["wind_mph"], w["precip_in"],
-        w["weather_observed_at"])
+        w["weather_observed_at"], source_sha256)
     session_id = cur.fetchone()[0]
 
     _insert_children(cur, session_id, laps, metrics, segments)
@@ -530,7 +554,7 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
 
 
 def refresh(cnx, session_id, event_id, meta, samples, laps, metrics,
-            car_id=None, segments=None):
+            car_id=None, segments=None, source_sha256=None):
     """Re-ingest an already-loaded session in place: replace its laps/
     corner_metrics/segment_times and (re)fetch weather, without touching
     session_id/session_number/source_file. For historical CSVs loaded
@@ -558,22 +582,27 @@ def refresh(cnx, session_id, event_id, meta, samples, laps, metrics,
         WHERE l.session_id = ?""", session_id)
     cur.execute("DELETE FROM dbo.laps WHERE session_id = ?", session_id)
 
+    # COALESCE on the hash for the same reason as car_id: a refresh from
+    # the CLI (which matches on filename and passes no hash) must not
+    # blank a hash the HTTP path already recorded.
     if w != weather.EMPTY:
         cur.execute("""
             UPDATE dbo.sessions
             SET session_date = ?, start_time = ?, car_id = COALESCE(?, car_id),
                 weather = ?, air_temp_f = ?, humidity_pct = ?,
-                wind_mph = ?, precip_in = ?, weather_observed_at = ?
+                wind_mph = ?, precip_in = ?, weather_observed_at = ?,
+                source_sha256 = COALESCE(?, source_sha256)
             WHERE session_id = ?""",
             session_date, start_time, car_id, w["weather"], w["air_temp_f"],
             w["humidity_pct"], w["wind_mph"], w["precip_in"],
-            w["weather_observed_at"], session_id)
+            w["weather_observed_at"], source_sha256, session_id)
     else:
         cur.execute("""
             UPDATE dbo.sessions
-            SET session_date = ?, start_time = ?, car_id = COALESCE(?, car_id)
+            SET session_date = ?, start_time = ?, car_id = COALESCE(?, car_id),
+                source_sha256 = COALESCE(?, source_sha256)
             WHERE session_id = ?""",
-            session_date, start_time, car_id, session_id)
+            session_date, start_time, car_id, source_sha256, session_id)
 
     _insert_children(cur, session_id, laps, metrics, segments)
     cnx.commit()

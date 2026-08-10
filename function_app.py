@@ -6,6 +6,7 @@ Azure SQL using the same stdlib-only logic as the local CLI
 event_ids and docs/BACKLOG.md for the target architecture.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -20,8 +21,8 @@ from ingest.api_auth import require_auth
 from ingest.cloud import get_cloud_connection, upload_raw_blob
 from ingest.racechrono_parser import (
     compute_corner_metrics, compute_laps, compute_segment_times,
-    fetch_corners, fmt_ms, load, next_session_number, parse_csv,
-    resolve_event_id,
+    fetch_corners, find_session_by_content, fmt_ms, load,
+    next_session_number, parse_csv, refresh, resolve_event_id,
 )
 
 app = func.FunctionApp()
@@ -387,15 +388,32 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
 
         if event_id is None:
             event_id = resolve_event_id(cnx, meta)
-        if session_number is None:
-            session_number = next_session_number(cnx, event_id)
         if car_id is None:
             car_id = DEFAULT_CAR_ID
 
-        blob_name = (f"{event_id}/{session_number}_{int(time.time())}"
-                     f"_{uuid.uuid4().hex[:8]}_{filename}")
-        upload_raw_blob(os.environ["STORAGE_ACCOUNT_URL"], RAW_CONTAINER,
-                         blob_name, body)
+        # Idempotency (issue #3): a re-upload of the same file must
+        # refresh the session it already created, not add a second one.
+        # Keyed on the content hash rather than the filename because the
+        # Shortcut sends `filename` optionally - without it this route
+        # invents a unique name per upload, which is exactly how session
+        # 14 duplicated session 6.
+        source_sha256 = hashlib.sha256(body).hexdigest()
+        existing = find_session_by_content(cnx, event_id, source_sha256)
+        if existing is not None and session_number is None:
+            _, session_number = existing
+        elif session_number is None:
+            session_number = next_session_number(cnx, event_id)
+
+        # The original is already archived for a re-upload, so don't
+        # write a second identical blob - "raw data is sacred" means the
+        # first copy stays, not that every POST gets its own.
+        if existing is None:
+            blob_name = (f"{event_id}/{session_number}_{int(time.time())}"
+                         f"_{uuid.uuid4().hex[:8]}_{filename}")
+            upload_raw_blob(os.environ["STORAGE_ACCOUNT_URL"], RAW_CONTAINER,
+                             blob_name, body)
+        else:
+            blob_name = None
 
         corners = fetch_corners(cnx, event_id)
         metrics = compute_corner_metrics(samples, corners) if corners else []
@@ -433,13 +451,27 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             parse_diag["pedal_channel"], parse_diag["has_rpm"],
             parse_diag["rows_used"], parse_diag["rows_skipped"])
 
+        summary["duplicate"] = existing is not None
+
         if dry_run:
             summary["loaded"] = False
             return _json_response(summary, 200)
 
-        session_id = load(cnx, event_id, session_number, filename,
-                           meta, samples, laps, metrics, car_id=car_id,
-                           segments=segments)
+        if existing is not None:
+            existing_id, _ = existing
+            logging.info(
+                "ingest: content already loaded as session_id=%s - "
+                "refreshing in place instead of inserting a duplicate",
+                existing_id)
+            session_id = refresh(
+                cnx, existing_id, event_id, meta, samples, laps, metrics,
+                car_id=car_id, segments=segments,
+                source_sha256=source_sha256)
+        else:
+            session_id = load(cnx, event_id, session_number, filename,
+                               meta, samples, laps, metrics, car_id=car_id,
+                               segments=segments,
+                               source_sha256=source_sha256)
         summary["loaded"] = True
         summary["session_id"] = session_id
         summary["corner_metric_count"] = len(metrics)
