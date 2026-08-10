@@ -120,18 +120,43 @@ blocks 1.0.
       the last unauthenticated endpoint. The information security due
       diligence item is now fully closed (2026-08-03, see Done below),
       so this is unblocked.
-- [ ] **Engineering practices assessment** — SPEC:
-      `docs/specs/engineering-review.md` (scoped 2026-08-02). Honest
-      review of everything written and deployed: automated testing
-      (currently none — the parser, lap validity, corner metrics,
-      event resolution, and weather parsing are the high-value
-      targets), CI/CD to replace hand-run deploys and encode the
-      verification steps currently held in memory, migration
-      discipline for `sql/*.sql`, a dependency pinning policy (per
-      the `mcp` crash-loop lesson), `ingest/` module structure,
-      error handling and observability, and docs currency. Produces
-      a severity-rated findings log; high-severity findings block
-      1.0, the rest become v1.x issues.
+- [ ] **Engineering practices assessment — REVIEW DONE 2026-08-09,
+      FIXES OUTSTANDING.** The review itself is complete: 22 findings
+      (5 high, 9 medium, 8 low) in `docs/specs/engineering-review.md`,
+      each verified against the repo or the live Azure/SQL resources.
+      What now blocks 1.0 is the five high-severity findings:
+      1. **No automated tests at all** (#1) — 2,400 lines of Python
+         and 12 React components, never exercised except by hand.
+      2. **No Application Insights** (#2) — not just unconfigured;
+         no component exists in the resource group, so `host.json`'s
+         logging block is inert and every `logging.exception()` in
+         the ingest path goes nowhere. Production write path is
+         unobservable. Fix is ~an hour and makes everything else
+         verifiable, so do it first.
+      3. **HTTP ingest has no idempotency** (#3) —
+         `find_existing_session()` exists but `function_app.py` never
+         calls it, so re-POSTing a CSV creates a duplicate session.
+         Already happened once (the row deleted 2026-08-03).
+      4. **TypeScript `strict` is off** (#4) — not set in any
+         tsconfig, so `strictNullChecks` is disabled and every
+         `| null` in `api/client.ts` is decorative. The real crash
+         fixed on 2026-08-09 was invisible to `tsc --noEmit`, which
+         is the dashboard's only automated check. One-line change,
+         then fix the fallout — do it before writing tests so the
+         tests are written against honest types.
+      5. **No migration tracking** (#5) — 17 files in `sql/`, 13
+         tables live, no `schema_migrations` table; drift is found
+         only when something breaks (which is how `sql/17` was
+         discovered unapplied).
+      Medium/low findings become v1.x issues — notably unpinned
+      Python deps with no lockfile, no CI, silently-dropped malformed
+      CSV rows, per-request DB connections that are never closed,
+      `str(exc)` leaked in 500 responses, and the `[MCP-AUTH-DEBUG]`
+      prints still logging token metadata in prod.
+      Theme of the review: the design judgement is good and the docs
+      are unusually strong; the gap is *verification* — almost
+      everything is confirmed by a human looking once, and nothing
+      re-checks itself afterwards.
 - [ ] **Docs baseline (living documentation v1)** — technical +
       business doc sets as docs-as-code in the repo
       (docs/technical/, docs/business/), updated in the same commits
