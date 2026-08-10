@@ -208,9 +208,10 @@ blocks 1.0.
          discovered unapplied).
       Medium/low findings become v1.x issues — notably unpinned
       Python deps with no lockfile, no CI, silently-dropped malformed
-      CSV rows, per-request DB connections that are never closed,
-      `str(exc)` leaked in 500 responses, and the `[MCP-AUTH-DEBUG]`
-      prints still logging token metadata in prod.
+      CSV rows, and per-request DB connections that are never closed.
+      Security-relevant findings are NOT recorded here or in GitHub
+      issues: this repo is public, so they live in
+      `.local/security-findings.md` (gitignored) as S-1..S-4.
       Theme of the review: the design judgement is good and the docs
       are unusually strong; the gap is *verification* — almost
       everything is confirmed by a human looking once, and nothing
@@ -588,9 +589,10 @@ identity-level scope; design as one coherent release.
       resource + scope, and accept aud=that URL in the verifier; (2) if
       the client bug still defeats it, FALL BACK to making the MCP server
       an OAuth AS proxy that strips/normalises the `resource` param
-      before forwarding to Entra. NOTE: `mcp_server/auth.py` currently
-      carries TEMP `[MCP-AUTH-DEBUG]` print statements (per-request token
-      accept/reject logging) — strip them once the connector works.
+      before forwarding to Entra. NOTE: `mcp_server/auth.py` carries
+      temporary debug instrumentation to strip once the connector works
+      — detail in `.local/security-findings.md` (S-2), not here, since
+      this repo is public.
       Diagnostics tip: Log Analytics workspace `1ac9567e-…` /
       `ContainerAppConsoleLogs_CL` aggregates all replicas (single-replica
       `az containerapp logs --follow` misses calls on the other replica).

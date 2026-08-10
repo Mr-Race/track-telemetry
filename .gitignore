@@ -4,3 +4,6 @@ data/
 __pycache__/
 .venv/
 local.settings.json
+
+# Security findings stay local - this repo is public.
+.local/

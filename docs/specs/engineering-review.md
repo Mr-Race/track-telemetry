@@ -95,6 +95,11 @@ Review conducted 2026-08-09 against commit `0233914`. Every finding
 below was verified against the repo or the live Azure/SQL resources —
 none are inferred from the docs. 22 findings: 5 high, 9 medium, 8 low.
 
+> **This repository is public.** Security-relevant findings are held in
+> `.local/security-findings.md` (gitignored) as S-1…S-4 and are
+> referenced here by identifier only. Do not restore their detail to
+> this file, to commit messages, or to GitHub issues.
+
 Severity means: **high** blocks 1.0 per the Method section above,
 **medium** becomes a v1.x issue, **low** is a judgement call to fix
 opportunistically. Effort is S (< half a day), M (1-2 days), L (more).
@@ -110,10 +115,10 @@ opportunistically. Effort is S (< half a day), M (1-2 days), L (more).
 | 7 | Dependencies | Medium | Most Python dependencies are entirely unpinned: `azure-functions`, `azure-identity`, `azure-storage-blob`, `python-tds`, `PyJWT[crypto]`, `certifi` carry no constraint in either requirements file. The only bounds present (`mcp<2.0.0`, `pyOpenSSL>=26.2`) were each added *reactively after a production break*. There is no lockfile, so two deploys of the same commit can install different code. | Pin with hashes (`pip-compile`), add a scheduled bump PR. | M |
 | 8 | Error handling | Medium | `parse_csv` silently discards malformed rows (`if not r or len(r) != len(names): continue`) with no count, warning, or telemetry. Combined with #2, a truncated or partly-corrupt upload loads quietly with missing samples and looks successful. | Count skipped rows, return in the response, log; fail past a threshold. | S |
 | 9 | Structure | Medium | Every request builds a new SQL connection *and* a new `DefaultAzureCredential()` (`_connect()` → `get_cloud_connection()`, and again in `maps._maps_token()`), and **no connection is ever closed** — there is no `with`/`.close()` anywhere in `function_app.py` or `mcp_server/server.py`. Against a serverless DB with a 60s login timeout this is both slow and leaky. | Module-level cached credential; context-managed connections. | M |
-| 10 | Error handling | Medium | Every 500 handler returns `{"error": str(exc)}` to the caller, leaking internal exception text (SQL errors, driver internals) to any authenticated client. | Return a generic message + correlation id; log the detail. | S |
-| 11 | Structure | Medium | `_QmarkCursor.execute` does a blind `sql.replace("?", "%s")` to bridge qmark placeholders to pytds. Its own docstring concedes this is safe only because "none of the shared queries contain literal `?` outside placeholder position" — an unenforced, untested invariant. A future `LIKE '%?%'` or a `?` inside a string literal corrupts the query silently. | Convert placeholders at the query layer, or assert the invariant in a test. | M |
+| 10 | Error handling | Medium | *Tracked privately (S-1) — this repo is public.* | — | S |
+| 11 | Structure | Medium | *Tracked privately (S-3) — this repo is public.* | — | M |
 | 12 | Testing | Medium | `compute_segment_times` explicitly sorts each lap's samples by `elapsed`; `compute_corner_metrics` does **not**, yet depends on order for `inside[0]`/`inside[-1]` (entry/exit speeds). Two functions with the same precondition, one defended, one not. | Sort in both; test with shuffled input. | S |
-| 13 | Observability | Medium | Four `[MCP-AUTH-DEBUG]` `print()` statements remain live in `mcp_server/auth.py`, writing token length, `aud` claims, and rejection reasons into Log Analytics on every request. Flagged for removal in the backlog and still shipped. | Delete, or demote to `logging.debug`. | S |
+| 13 | Observability | Medium | *Tracked privately (S-2) — this repo is public.* | — | S |
 | 14 | Migrations | Medium | 5 of 17 migration files mix `ALTER TABLE` with `INSERT`/`UPDATE` in one file with no `GO` separator (`09`, `11`, `12`, `13`, `17`). SQL Server does not reliably see a newly added column later in the same batch — this has now bitten twice (`sql/13`, and `sql/17` again today, both needing manual splitting). The rule is known but encoded nowhere. | Add `GO` separators and state the rule in the runbook. | S |
 | 15 | Testing | Medium | `resolve_event_id`'s zero-match and multi-match branches, and `next_session_number`, have no coverage — they are reachable only through a real upload, so they fail in production first. | Unit-test both with a fake cursor. | S |
 | 16 | Docs | Low | `README.md` is stale: it lists "OAuth on the MCP server" as pending (server side shipped 2026-08-07), describes status as "MVP launched", omits segment times, weather, optimal laps, cars, and the event pages, and **its repo layout never mentions `mcp_server/`** despite that being a deployed service. | Refresh at the v1.0 docs baseline. | S |
@@ -147,7 +152,7 @@ Filed 2026-08-09. This doc stays the index; the issues carry the work.
 | Finding | Issue | Finding | Issue |
 |---|---|---|---|
 | #1 tests | [#11](https://github.com/Mr-Race/track-telemetry/issues/11) | #12 unsorted samples | [#19](https://github.com/Mr-Race/track-telemetry/issues/19) |
-| #2 App Insights | [#9](https://github.com/Mr-Race/track-telemetry/issues/9) | #13 debug prints | [#20](https://github.com/Mr-Race/track-telemetry/issues/20) |
+| #2 App Insights | [#9](https://github.com/Mr-Race/track-telemetry/issues/9) | #13 | private (S-2) |
 | #3 ingest idempotency | [#3](https://github.com/Mr-Race/track-telemetry/issues/3) (pre-existing) | #14 ALTER/GO | [#21](https://github.com/Mr-Race/track-telemetry/issues/21) |
 | #4 TS strict | [#10](https://github.com/Mr-Race/track-telemetry/issues/10) | #15 event-resolution tests | folded into [#11](https://github.com/Mr-Race/track-telemetry/issues/11) |
 | #5 migration tracking | [#12](https://github.com/Mr-Race/track-telemetry/issues/12) | #16 stale README | [#24](https://github.com/Mr-Race/track-telemetry/issues/24) |
@@ -155,8 +160,8 @@ Filed 2026-08-09. This doc stays the index; the issues carry the work.
 | #7 dependencies | [#13](https://github.com/Mr-Race/track-telemetry/issues/13) | #18 external-call resilience | [#26](https://github.com/Mr-Race/track-telemetry/issues/26) |
 | #8 malformed CSV rows | [#15](https://github.com/Mr-Race/track-telemetry/issues/15) | #19 median | [#22](https://github.com/Mr-Race/track-telemetry/issues/22) |
 | #9 connections | [#16](https://github.com/Mr-Race/track-telemetry/issues/16) | #20 double-pass corner | [#23](https://github.com/Mr-Race/track-telemetry/issues/23) |
-| #10 leaked `str(exc)` | [#17](https://github.com/Mr-Race/track-telemetry/issues/17) | #21 hardcoded car / boilerplate | [#27](https://github.com/Mr-Race/track-telemetry/issues/27) |
-| #11 qmark replace | [#18](https://github.com/Mr-Race/track-telemetry/issues/18) | #22 deploy automation | [#28](https://github.com/Mr-Race/track-telemetry/issues/28) |
+| #10 | private (S-1) | #21 hardcoded car / boilerplate | [#27](https://github.com/Mr-Race/track-telemetry/issues/27) |
+| #11 | private (S-3) | #22 deploy automation | [#28](https://github.com/Mr-Race/track-telemetry/issues/28) |
 
 Note finding #3 was already filed on 2026-08-03 as issue #3, from the
 duplicate-session incident itself — the review independently found the
