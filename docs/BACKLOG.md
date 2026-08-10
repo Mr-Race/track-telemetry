@@ -78,9 +78,18 @@ assumption is the same kind of thing. Reviewed 2026-08-10.
 - `ingest/queries.py` has no tests at all — ~800 lines of SQL, and the
   single largest untested surface. Needs a throwaway DB or a much
   larger stub; judged the wrong trade so far, but it is a real hole.
-- **Nothing runs the 93 tests on push** (issue #14). Tests that only
-  execute when someone remembers are a weaker guarantee than the count
-  suggests. Highest-value small item outstanding.
+- ~~Nothing runs the tests on push~~ — closed 2026-08-10, CI now gates
+  pytest, lint, typecheck and build. Two things it still does **not**
+  cover: the migration *drift* check needs live DB access behind an IP
+  allowlist and stays a manual pre-deploy step, and nothing verifies
+  production after a deploy — the PR template carries that checklist
+  but a checklist is not a gate.
+- **Secret scanning and push protection are unverified.** The
+  framework's setup checklist calls for them before the first real
+  commit. CodeQL code scanning and Dependabot are confirmed running;
+  these two could not be checked without repo-admin API access. Check
+  Settings -> Code security, and note the framework calls retrofitting
+  this the one mistake with no clean fix.
 - ~~No migrations ledger~~ — closed 2026-08-10, see Done.
 
 **Undecided, deliberately:**
@@ -387,6 +396,41 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — CI, and making the practices front-facing (issue
+      #14). Prompted by AC asking whether the infosec and engineering
+      practices were actually *embedded* — the honest answer was no.
+      Five findings had been closed, but nearly everything built to
+      close them was a **detector, not a gate**: 109 tests, a linter, a
+      typechecker and a drift checksum that only fired when someone
+      remembered. That is the same failure the review diagnosed, one
+      level up.
+      `.github/workflows/ci.yml` now runs pytest, oxlint, tsc and the
+      vite build on every push and PR, plus a `git diff --exit-code`
+      check that the build leaves tracked files alone. Verified green
+      on the first run rather than assumed — a CI that fails on arrival
+      teaches people to ignore it. Each step was dry-run locally first,
+      including confirming oxlint exits 0 on the pre-existing warning
+      and that `dist/` is gitignored so the diff check can pass.
+      Deliberately not in CI: the migration drift check needs live DB
+      access behind an IP allowlist. The parts needing no database -
+      ordering, GO-splitting, duplicate numbers - are in the test suite
+      and so do gate.
+      `SECURITY.md` states the rule where someone looks *before* filing
+      rather than only inside a review document, and records why it
+      exists. The issue-template chooser links to it before a blank
+      issue can be opened, and the template asks the question
+      explicitly. The PR template carries the §5 verification checklist
+      so "enumerate, don't spot-check" and the container cold-start
+      step stop living in the Done log and in memory. `README.md` now
+      links WAY-OF-WORKING, BACKLOG, SECURITY and the migration
+      runbook - the framework says to read it first in any session, and
+      nothing pointed at it from the entry point.
+      Found while verifying: **CodeQL code scanning is already enabled**
+      (a "Push on main" workflow analyses Python and TypeScript on every
+      push, via GitHub's default setup, with no file in the repo).
+      Dependabot is confirmed too. Secret scanning and push protection
+      could **not** be verified - both API endpoints need repo-admin
+      auth - so they are recorded as an open gap rather than assumed.
 - [x] 2026-08-10 — **Engineering practices assessment CLOSED** — the
       v1.0 review gate. Review completed 2026-08-09 (22 findings: 5
       high, 9 medium, 8 low, in `docs/specs/engineering-review.md`,
