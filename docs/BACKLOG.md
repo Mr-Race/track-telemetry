@@ -376,6 +376,39 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — Parser core under test: suite grown 22 -> 93 tests,
+      covering every target the engineering review's finding #1 named
+      (`compute_laps`, `compute_corner_metrics`, `compute_segment_times`,
+      event/session resolution, weather parsing, the track-local time
+      helpers). Closes the original checklist on issue #11.
+      **Writing the tests found three real bugs**, each written failing
+      first and then fixed - issues #22, #19 and #23 all closed:
+      the "median" was `sorted(durs)[len//2]`, the upper middle value
+      for an even lap count, which biased the validity threshold
+      lenient; `compute_corner_metrics` took entry/exit from
+      `inside[0]`/`inside[-1]` without sorting by elapsed, unlike
+      `compute_segment_times` next door, so out-of-order rows silently
+      swapped the two speeds; and it flattened every in-zone sample into
+      one list, so a layout passing the same apex twice in a lap merged
+      both passes.
+      All three were latent rather than live, and proving that mattered
+      more than the fixes: these functions decide what the pending
+      historical backfill will write, so a behaviour change here would
+      quietly rewrite history. Recomputed 15 laps, 189 segment times and
+      174 corner metrics from the archived exports and compared against
+      what the old code stored - **zero differences**. The median moved
+      (112.682s -> 112.125s on the even-lap session) without flipping
+      any lap, which is exactly the kind of thing worth measuring rather
+      than assuming.
+      Notes: `resolve_event_id`/`next_session_number`/`track_timezone`
+      take a cursor rather than a connection, so a stub covers them with
+      no DB - whether `queries.py` gets integration tests against a
+      throwaway database is still open and still looks like the wrong
+      trade. The weather tests assert the fail-soft property directly
+      (network error, missing hour, no corner coordinates), since
+      WAY-OF-WORKING §7 holds that up as the reference pattern and it
+      had never actually been checked.
+      Still missing: no CI runs any of this on push (issue #14).
 - [x] 2026-08-10 — Content-hash idempotency on the HTTP ingest path
       (GitHub issue #3, closed). Re-POSTing the same CSV created a
       second session - it happened for real (session 14 duplicating
