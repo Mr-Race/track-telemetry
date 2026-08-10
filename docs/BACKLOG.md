@@ -109,6 +109,51 @@ blocks 1.0.
       mid-update). Decide separately whether `event_summary()` should
       order by `start_time` instead of `session_number` as a belt-and-
       braces guard against this recurring.
+- [ ] **Parser must accept the `accelerator_pos` OBD channel**
+      (GitHub issue #8, raised 2026-08-10 — tracked there in full,
+      summarized here because it gates the backfill item below).
+      `parse_csv` looks up only `throttle_pos` (source `200: obd`):
+      `for name in ("rpm", "throttle_pos")`. After RaceChrono was
+      reconfigured to log true pedal position (PID 0x49), exports name
+      the column **`accelerator_pos`**, so the lookup misses,
+      `obd_value()` returns None, and
+      `corner_metrics.throttle_pos_apex_pct` silently writes NULL for
+      every corner of every session — no error, no warning. Verified
+      against a real export (`session_20260810_071257_v3.csv`).
+      **Why it's v1.0 and not v1.x:** it blocks "Backfill historical
+      sessions" below — re-ingesting the archive with a parser that
+      can't read the channel would bake NULLs into the entire history.
+      Fix is name resolution at parse time only: accept either name,
+      prefer `accelerator_pos` when both are present (true pedal
+      position beats throttle plate — undistorted by traction control
+      or torque limiting, 40 Hz, wider usable range). **No data
+      mutation** — historical exports keep `throttle_pos`, nothing in
+      Blob is touched, and the backfill re-ingests archived originals
+      unchanged, per the raw-data-is-sacred principle.
+      Also required: an upload with **no OBD data at all** (dongle not
+      paired, Bluetooth dropped, left at home) must still ingest
+      normally — laps, corner metrics and segment times all derive
+      from GPS. That path is documented as graceful but has never been
+      tested, and it's now the failure mode most likely to hit at a
+      track day. The ingest response should state which OBD channels
+      were found, so a missing dongle is visible at upload time rather
+      than discovered weeks later in the data — same fix as the
+      engineering review's finding #8 (silently dropped rows), so do
+      them together.
+      Needs fixtures for all three cases (`accelerator_pos`,
+      `throttle_pos`, neither) — feeds the test-suite issue #11. Note
+      the new export isn't in `data/` yet (same phone/laptop blocker as
+      the backfill item); the no-OBD case can be synthesized from the
+      two exports already there.
+      Calibration, measured 2026-08-10: pedal at rest **18.82%**
+      (48/255), pedal at the stop **94.90%** (242/255). Store as
+      calibration constants on the vehicle config and normalize
+      percent-of-travel **on read** —
+      `(raw - 18.82) / (94.90 - 18.82) * 100`. Deliberately NOT baked
+      into ingest: if the PID ever changes, historical sessions would
+      double-correct. (RaceChrono's gauge and the car's dash both show
+      100% at full pedal; that's UI normalization, not the raw signal.
+      The CSV ceiling of 94.90 is the real one.)
 - [ ] **Backfill historical sessions** — the refresh-in-place
       `--backfill` CLI mode exists now (see Done, 2026-08-03) and has
       been run against the two historical CSVs already in `data/`
