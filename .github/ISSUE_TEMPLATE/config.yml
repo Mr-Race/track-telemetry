@@ -1,0 +1,17 @@
+# Blank issues stay available - the friction of a template shouldn't
+# stop a quick note being captured. The links below are what someone
+# sees before choosing, which is the moment the security question
+# actually needs asking.
+blank_issues_enabled: true
+contact_links:
+  - name: Security finding (do NOT open an issue)
+    url: https://github.com/Mr-Race/track-telemetry/blob/main/SECURITY.md
+    about: >-
+      This repository is PUBLIC. A live security weakness filed here is
+      a disclosure. Read SECURITY.md - unfixed findings go in .local/,
+      and outside reports go to a private advisory.
+  - name: How this project works
+    url: https://github.com/Mr-Race/track-telemetry/blob/main/docs/WAY-OF-WORKING.md
+    about: >-
+      Practices this project holds itself to - the backlog governs,
+      verify against deployed reality, publish findings only once fixed.

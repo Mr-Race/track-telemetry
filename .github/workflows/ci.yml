@@ -1,0 +1,82 @@
+# Turns the project's checks from detectors into gates.
+#
+# Everything here could already be run by hand, which was the problem:
+# 109 tests, a linter and a typechecker that only execute when someone
+# remembers are a weaker guarantee than their count suggests. See
+# docs/WAY-OF-WORKING.md and GitHub issue #14.
+#
+# Deliberately not here: the migration *drift* check
+# (`python sql/migrate.py`) needs live database access, and this repo is
+# public with the database behind an IP allowlist. The parts of the
+# migration discipline that can be checked without a database - ordering,
+# GO-splitting, duplicate numbers - are asserted in tests/test_migrate.py
+# and so do run here. Drift itself stays a manual pre-deploy step.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push supersedes an in-flight run for the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        # requirements.txt as well as the dev file: the tests import
+        # ingest.cloud, which pulls in pytds and the azure SDKs.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
+  dashboard:
+    name: Dashboard lint, typecheck, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        # `npm ci` not `npm install`: it installs exactly the lockfile,
+        # so CI cannot silently drift onto different versions.
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck and build
+        # `npm run build` is `tsc -b && vite build`, so this covers the
+        # typecheck too - and with "strict": true it is a real check.
+        run: npm run build
+
+      - name: Fail if the build changed tracked files
+        # A build that dirties package-lock.json or similar means the
+        # committed state and the built state disagree.
+        run: git diff --exit-code

@@ -4,6 +4,18 @@ Enterprise-grade telemetry pipeline for HPDE track data (RaceChrono ->
 Azure SQL -> Claude via MCP -> React dashboard). Built as a portfolio
 piece demonstrating cloud + AI architecture.
 
+## Start here
+- **[docs/WAY-OF-WORKING.md](docs/WAY-OF-WORKING.md)** — the practices
+  this project holds itself to. Read first; every rule in it exists
+  because something broke without it.
+- **[docs/BACKLOG.md](docs/BACKLOG.md)** — the system of record:
+  guiding principles, versioned scope, known gaps, and a dated Done log.
+  If a decision only exists in a chat, it doesn't exist.
+- **[SECURITY.md](SECURITY.md)** — this repo is public; security
+  findings do **not** go in issues.
+- **[sql/README.md](sql/README.md)** — how migrations are applied and
+  recorded.
+
 ## Architecture
 RaceChrono CSV v3 -> iOS Shortcut (share sheet) -> HTTP Azure Function
 (`func-track-telemetry-ingest`, parse/enrich)
