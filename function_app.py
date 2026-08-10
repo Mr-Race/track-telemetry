@@ -361,7 +361,7 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             tmp.write(body)
             tmp.flush()
-            meta, samples = parse_csv(tmp.name)
+            meta, samples, parse_diag = parse_csv(tmp.name)
 
         laps = compute_laps(samples)
         cnx = _connect()
@@ -404,7 +404,15 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             "corner_coverage": sorted({m["corner_code"] for m in metrics},
                                        key=lambda c: (len(c), c)),
             "laps_with_segments": len({s["lap_number"] for s in segments}),
+            # Surfaced so a missing OBD dongle or a truncated file is
+            # obvious at upload time instead of turning up weeks later
+            # as NULLs in the data.
+            "parse": parse_diag,
         }
+        logging.info(
+            "ingest parse: pedal_channel=%s has_rpm=%s rows_used=%d skipped=%s",
+            parse_diag["pedal_channel"], parse_diag["has_rpm"],
+            parse_diag["rows_used"], parse_diag["rows_skipped"])
 
         if dry_run:
             summary["loaded"] = False

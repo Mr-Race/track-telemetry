@@ -1,0 +1,5 @@
+# Test-only dependencies. Deliberately NOT in requirements.txt: that
+# file is what Azure Functions installs at deploy time, and test tooling
+# has no business shipping to production.
+#   pip install -r requirements-dev.txt
+pytest>=8.0

@@ -34,11 +34,27 @@ DEFAULT_TRACK_TZ = "America/New_York"
 
 MPS_TO_MPH = 2.23694
 
+# The pedal channel changed name when the logger was reconfigured to
+# record true pedal position (OBD PID 0x49): older exports carry
+# `throttle_pos`, newer ones `accelerator_pos`. Accept either, and
+# prefer the pedal signal where both appear - it reports the driver's
+# foot rather than the throttle plate, so traction control and torque
+# limiting don't distort it. Resolution happens here at parse time
+# only: no CSV is rewritten and nothing in Blob is touched, so the
+# archived originals stay the system of record. See GitHub issue #8.
+PEDAL_CHANNELS = ("accelerator_pos", "throttle_pos")
+
 
 # ---------------------------------------------------------------- parsing
 
 def parse_csv(path):
-    """Return (metadata dict, list of sample dicts)."""
+    """Return (metadata dict, list of sample dicts, diagnostics dict).
+
+    The diagnostics report which OBD channels were resolved and how many
+    rows were skipped and why. They exist so a missing OBD dongle or a
+    truncated file is visible at upload time rather than discovered
+    weeks later as NULLs in the data.
+    """
     with open(path, newline="") as fh:
         rows = list(csv.reader(fh))
 
@@ -71,26 +87,44 @@ def parse_csv(path):
     }
 
     # OBD channels are only present when the device is paired to the
-    # car's OBD-II port - absent on some exports, so look these up
-    # optionally rather than failing the whole parse.
-    obd_ci = {}
-    for name in ("rpm", "throttle_pos"):
+    # car's OBD-II port - absent whenever the dongle isn't paired,
+    # Bluetooth drops, or it's left at home. A session without them is
+    # still a perfectly valid GPS session (laps, corner metrics and
+    # segment times all derive from GPS), so look these up optionally
+    # rather than failing the whole parse.
+    def optional_col(name):
         try:
-            obd_ci[name] = col(name, "200: obd")
+            return col(name, "200: obd")
         except ValueError:
-            obd_ci[name] = None
+            return None
 
+    obd_ci = {"rpm": optional_col("rpm"), "throttle_pos": None}
+    # Keep the internal key `throttle_pos` whichever name the file uses:
+    # it matches the sample dict, compute_corner_metrics, and the
+    # corner_metrics.throttle_pos_apex_pct column, so accepting the new
+    # channel needs no schema or downstream change.
+    pedal_channel = None
+    for name in PEDAL_CHANNELS:
+        idx = optional_col(name)
+        if idx is not None:
+            obd_ci["throttle_pos"], pedal_channel = idx, name
+            break
+
+    skipped = {"malformed": 0, "no_lap": 0, "missing_gps": 0}
     samples = []
     for r in rows[hidx + 3:]:
         if not r or len(r) != len(names):
+            skipped["malformed"] += 1
             continue
         lap = r[ci["lap"]].strip()
         if not lap:
-            continue  # pre-first-crossing / pit samples
+            skipped["no_lap"] += 1  # pre-first-crossing / pit samples
+            continue
         spd = r[ci["speed"]].strip()
         lat = r[ci["lat"]].strip()
         lon = r[ci["lon"]].strip()
         if not (spd and lat and lon):
+            skipped["missing_gps"] += 1
             continue
 
         def obd_value(channel):
@@ -111,7 +145,17 @@ def parse_csv(path):
         })
     if not samples:
         raise ValueError("No lap-numbered samples found in file.")
-    return meta, samples
+
+    diag = {
+        # `pedal_channel` is the name as it appeared in the file, so the
+        # upload response can say which one was actually read.
+        "pedal_channel": pedal_channel,
+        "has_rpm": obd_ci["rpm"] is not None,
+        "has_obd": pedal_channel is not None or obd_ci["rpm"] is not None,
+        "rows_used": len(samples),
+        "rows_skipped": skipped,
+    }
+    return meta, samples, diag
 
 
 def compute_laps(samples):
@@ -562,7 +606,10 @@ def main():
                     help="local corner defs for offline dry run")
     args = ap.parse_args()
 
-    meta, samples = parse_csv(args.csv)
+    meta, samples, diag = parse_csv(args.csv)
+    print(f"channels: pedal={diag['pedal_channel'] or 'none'} "
+          f"rpm={'yes' if diag['has_rpm'] else 'no'}; "
+          f"rows used={diag['rows_used']} skipped={diag['rows_skipped']}")
     laps = compute_laps(samples)
 
     corners = []

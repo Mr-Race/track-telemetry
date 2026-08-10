@@ -112,6 +112,19 @@ blocks 1.0.
 - [ ] **Parser must accept the `accelerator_pos` OBD channel**
       (GitHub issue #8, raised 2026-08-10 — tracked there in full,
       summarized here because it gates the backfill item below).
+      **PARTLY LANDED 2026-08-10 (not deployed).** Done: name
+      resolution in `parse_csv` (accepts either channel, prefers
+      `accelerator_pos`); OBD channels and skipped-row counts now
+      reported in the ingest response and logged; `parse_csv` returns a
+      third `diagnostics` value (both callers updated); first pytest
+      suite covering all three OBD cases. **Remaining: (a) the
+      calibration constants (18.82/94.90) still need somewhere to live
+      — they want a vehicle-config concept that doesn't exist yet, and
+      normalization happens on read, not at ingest; (b) the
+      `accelerator_pos` test fixture is synthetic, so it verifies the
+      resolution logic but not the real file's exact shape — needs
+      `session_20260810_071257_v3.csv` off the phone; (c) not deployed
+      — changing prod ingest behavior should happen with AC present.**
       `parse_csv` looks up only `throttle_pos` (source `200: obd`):
       `for name in ("rpm", "throttle_pos")`. After RaceChrono was
       reconfigured to log true pedal position (PID 0x49), exports name
@@ -367,6 +380,28 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — First automated tests in the project's history
+      (engineering review finding #1, issue #11 — a first slice, not
+      the whole item). `tests/` with pytest, 10 tests, all passing in
+      0.03s. Test-only deps live in a new `requirements-dev.txt`,
+      deliberately NOT in `requirements.txt`, which is what Azure
+      Functions installs at deploy time.
+      Fixtures are built in code (`tests/conftest.py`) as small
+      synthetic v3 exports rather than committed CSVs — real exports
+      are 11-14 MB and `data/` is gitignored under the raw-data-is-
+      sacred principle. The synthetic layout mirrors a real file
+      including `speed` appearing three times under different sources,
+      which is exactly why the parser disambiguates GPS columns by
+      source rather than by name.
+      Covers the three OBD cases from issue #8 (`accelerator_pos`,
+      historical `throttle_pos`, neither), the both-present preference
+      ordered so a naive first-match would pick wrong, partial OBD
+      (rpm but no pedal), the three skipped-row counters, and the two
+      parse-failure paths.
+      Validated against reality, not just fixtures: both real exports
+      in `data/` parse unchanged through the modified parser, and the
+      June session's 8 laps / 7 valid and best lap 1:49.558 match the
+      live DB exactly.
 - [x] 2026-08-09 — Engineering review findings filed as GitHub issues
       (#9-#28) and the first two high-severity ones fixed.
       **Finding #2, Application Insights (issue #9) — CLOSED.** There
