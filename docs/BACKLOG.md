@@ -123,8 +123,9 @@ blocks 1.0.
       normalization happens on read, not at ingest; (b) the
       `accelerator_pos` test fixture is synthetic, so it verifies the
       resolution logic but not the real file's exact shape — needs
-      `session_20260810_071257_v3.csv` off the phone; (c) not deployed
-      — changing prod ingest behavior should happen with AC present.**
+      `session_20260810_071257_v3.csv` off the phone. **Deployed
+      2026-08-10** (rode along with the security-fix deploy, since
+      `func publish` ships the whole app).
       `parse_csv` looks up only `throttle_pos` (source `200: obd`):
       `for name in ("rpm", "throttle_pos")`. After RaceChrono was
       reconfigured to log true pedal position (PID 0x49), exports name
@@ -381,6 +382,35 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — Closed the three security-relevant findings from the
+      engineering review (S-1, S-2, S-3 — detail in `.local/`, not here;
+      this repo is public). Commit `8dde245`; Function App and MCP
+      Container App both redeployed and verified live.
+      Verification followed WAY-OF-WORKING §5 (enumerate, don't
+      spot-check): all 16 Function routes checked individually and the
+      deployed function count reconciled against the 16 `@app.route`
+      declarations in source — the "a bad dependency floor silently
+      wiped every registered function" failure mode. For the MCP server,
+      Container App revision `0000011` confirmed Active/Healthy at 100%
+      traffic *and* cold-started with real requests, since a healthy
+      revision that is scaled to zero proves nothing about whether the
+      image runs. All 14 `queries.py` shapes were exercised against the
+      live DB because S-3 changed the code path every query takes.
+      **Lesson worth keeping: the first verification query returned the
+      answer I wanted for the wrong reason.** Checking that the removed
+      debug instrumentation had stopped logging, a search for the literal
+      marker string returned zero both before *and* after the deploy —
+      which looks like success but actually meant the query matched
+      nothing at all. A corrected query found 120 occurrences before the
+      deploy (last 2026-08-07) and zero after. A "clean" result is only
+      evidence if the same query demonstrably finds the thing when it IS
+      present. Always run the negative control.
+      Two residual gaps, recorded rather than papered over: the 500-path
+      envelope is verified statically and by unit test but was never
+      triggered live (auth runs first, so forcing a production 500 needs
+      a valid token), and the ~120 pre-fix log entries still sit in Log
+      Analytics — the fix stops new leakage but does not purge retained
+      history. Purging is an open decision.
 - [x] 2026-08-10 — First automated tests in the project's history
       (engineering review finding #1, issue #11 — a first slice, not
       the whole item). `tests/` with pytest, 10 tests, all passing in
