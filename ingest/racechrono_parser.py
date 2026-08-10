@@ -23,6 +23,7 @@ import argparse
 import csv
 import logging
 import math
+import statistics
 import sys
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -178,7 +179,12 @@ def compute_laps(samples):
     # Evidence-based out/in-lap flags: RaceChrono only numbers laps
     # after the first S/F crossing, so lap 1 may already be flying.
     # Flag first/last laps only if >12% slower than the session median.
-    med = sorted(durs)[len(durs) // 2]
+    #
+    # A true median, not sorted(durs)[len(durs)//2]: for an even lap
+    # count that expression takes the upper of the two middle values,
+    # which biases the median high and so makes the 12% cut more lenient
+    # than intended. See GitHub issue #22.
+    med = statistics.median(durs)
     laps = []
     for i, (ln, dur) in enumerate(zip(lap_nums, durs)):
         slow = dur > med * 1.12
@@ -208,17 +214,36 @@ def compute_corner_metrics(samples, corners):
     by_lap = {}
     for s in samples:
         by_lap.setdefault(s["lap"], []).append(s)
+    # Entry and exit are inside[0] and inside[-1], so chronological order
+    # is a precondition. compute_segment_times sorts for the same reason;
+    # relying on the file already being ordered is an accidental
+    # guarantee, and when it fails the two speeds silently swap rather
+    # than erroring. See GitHub issue #19.
+    for pts in by_lap.values():
+        pts.sort(key=lambda p: p["elapsed"])
 
     for ln, pts in sorted(by_lap.items()):
         for c in corners:
             if c.get("apex_lat") is None:
                 continue
-            inside = [p for p in pts
-                      if haversine_m(p["lat"], p["lon"],
-                                     c["apex_lat"], c["apex_lon"])
-                      <= c["zone_radius_m"]]
-            if not inside:
+            # Contiguous runs, not one flat list: a tight layout can pass
+            # within zone_radius_m of the same apex twice in a lap, and
+            # flattening took entry from the first pass and exit from the
+            # second. The corner is the slowest pass, and its entry/exit
+            # come from that same pass. See GitHub issue #23.
+            passes, current = [], []
+            for p in pts:
+                if haversine_m(p["lat"], p["lon"],
+                               c["apex_lat"], c["apex_lon"]) <= c["zone_radius_m"]:
+                    current.append(p)
+                elif current:
+                    passes.append(current)
+                    current = []
+            if current:
+                passes.append(current)
+            if not passes:
                 continue
+            inside = min(passes, key=lambda run: min(p["mph"] for p in run))
             apex = min(inside, key=lambda p: p["mph"])
             exit_sample = inside[-1]
             metrics.append({

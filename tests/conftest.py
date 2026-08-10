@@ -83,3 +83,71 @@ def make_csv(tmp_path):
     def _make(**kwargs):
         return build_csv(tmp_path, **kwargs)
     return _make
+
+
+def samples_for_laps(durations, per_lap=5, lat=39.3607, lon=-75.0559,
+                     mph=60.0):
+    """Sample dicts for laps of the given durations, in seconds.
+
+    compute_laps derives lap N's time from the *first* sample of lap N+1
+    minus the first sample of lap N, so the samples within a lap are
+    spread evenly across its duration and the next lap starts exactly
+    where the previous one ends. The final lap has no successor, so its
+    duration comes from its own last sample - which means it needs a
+    sample at its full duration to measure the same way.
+    """
+    samples = []
+    elapsed = 0.0
+    for lap_number, dur in enumerate(durations, start=1):
+        step = dur / per_lap
+        for i in range(per_lap):
+            samples.append({
+                "ts": 1778954779.0 + elapsed + i * step,
+                "lap": lap_number,
+                "elapsed": elapsed + i * step,
+                "lat": lat, "lon": lon, "mph": mph,
+                "rpm": None, "throttle_pos": None,
+            })
+        elapsed += dur
+    # Close out the final lap so its measured duration matches its
+    # intended one rather than stopping a step short.
+    samples.append({
+        "ts": 1778954779.0 + elapsed, "lap": len(durations),
+        "elapsed": elapsed, "lat": lat, "lon": lon, "mph": mph,
+        "rpm": None, "throttle_pos": None,
+    })
+    return samples
+
+
+@pytest.fixture
+def laps_from():
+    return samples_for_laps
+
+
+# ---- geometry helpers, shared by the corner-metric and segment tests ----
+# At NJMP's latitude one degree of latitude is ~111,320 m, so offsets are
+# written in metres and converted. That keeps tests legible against the
+# 25 m default zone radius.
+APEX_LAT, APEX_LON = 39.36075, -75.05590
+M_PER_DEG_LAT = 111_320.0
+
+
+def geo_sample(offset_m, mph, lap=1, elapsed=0.0, rpm=None, throttle=None,
+               apex_lat=APEX_LAT, apex_lon=APEX_LON):
+    """A sample `offset_m` north of the given apex, at the given speed."""
+    return {
+        "lap": lap,
+        "elapsed": elapsed,
+        "lat": apex_lat + offset_m / M_PER_DEG_LAT,
+        "lon": apex_lon,
+        "mph": mph,
+        "rpm": rpm,
+        "throttle_pos": throttle,
+    }
+
+
+def geo_corner(code="1", radius=25, apex_lat=APEX_LAT, apex_lon=APEX_LON,
+               corner_id=101):
+    return {"corner_code": code, "corner_id": corner_id,
+            "apex_lat": apex_lat, "apex_lon": apex_lon,
+            "zone_radius_m": radius}
