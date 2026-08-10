@@ -81,8 +81,7 @@ assumption is the same kind of thing. Reviewed 2026-08-10.
 - **Nothing runs the 93 tests on push** (issue #14). Tests that only
   execute when someone remembers are a weaker guarantee than the count
   suggests. Highest-value small item outstanding.
-- No migrations ledger (issue #12): 18 files in `sql/`, no record in
-  the DB of which ran. Drift is still found by breakage.
+- ~~No migrations ledger~~ — closed 2026-08-10, see Done.
 
 **Undecided, deliberately:**
 - Whether `event_summary()` should order sessions by `start_time`
@@ -223,44 +222,6 @@ blocks 1.0.
       the last unauthenticated endpoint. The information security due
       diligence item is now fully closed (2026-08-03, see Done below),
       so this is unblocked.
-- [ ] **Engineering practices assessment — REVIEW DONE 2026-08-09,
-      FIXES OUTSTANDING.** The review itself is complete: 22 findings
-      (5 high, 9 medium, 8 low) in `docs/specs/engineering-review.md`,
-      each verified against the repo or the live Azure/SQL resources.
-      What now blocks 1.0 is the five high-severity findings:
-      1. **No automated tests at all** (#1) — 2,400 lines of Python
-         and 12 React components, never exercised except by hand.
-      2. **No Application Insights** (#2) — not just unconfigured;
-         no component exists in the resource group, so `host.json`'s
-         logging block is inert and every `logging.exception()` in
-         the ingest path goes nowhere. Production write path is
-         unobservable. Fix is ~an hour and makes everything else
-         verifiable, so do it first.
-      3. **HTTP ingest has no idempotency** (#3) —
-         `find_existing_session()` exists but `function_app.py` never
-         calls it, so re-POSTing a CSV creates a duplicate session.
-         Already happened once (the row deleted 2026-08-03).
-      4. **TypeScript `strict` is off** (#4) — not set in any
-         tsconfig, so `strictNullChecks` is disabled and every
-         `| null` in `api/client.ts` is decorative. The real crash
-         fixed on 2026-08-09 was invisible to `tsc --noEmit`, which
-         is the dashboard's only automated check. One-line change,
-         then fix the fallout — do it before writing tests so the
-         tests are written against honest types.
-      5. **No migration tracking** (#5) — 17 files in `sql/`, 13
-         tables live, no `schema_migrations` table; drift is found
-         only when something breaks (which is how `sql/17` was
-         discovered unapplied).
-      Medium/low findings become v1.x issues — notably unpinned
-      Python deps with no lockfile, no CI, silently-dropped malformed
-      CSV rows, and per-request DB connections that are never closed.
-      Security-relevant findings are NOT recorded here or in GitHub
-      issues: this repo is public, so they live in
-      `.local/security-findings.md` (gitignored) as S-1..S-4.
-      Theme of the review: the design judgement is good and the docs
-      are unusually strong; the gap is *verification* — almost
-      everything is confirmed by a human looking once, and nothing
-      re-checks itself afterwards.
 - [ ] **Docs baseline (living documentation v1)** — technical +
       business doc sets as docs-as-code in the repo
       (docs/technical/, docs/business/), updated in the same commits
@@ -426,6 +387,64 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-10 — **Engineering practices assessment CLOSED** — the
+      v1.0 review gate. Review completed 2026-08-09 (22 findings: 5
+      high, 9 medium, 8 low, in `docs/specs/engineering-review.md`,
+      each verified against the repo or the live Azure/SQL resources
+      rather than inferred from the docs). All five high-severity
+      findings are now fixed, deployed and verified:
+      #1 no tests (93 now), #2 no Application Insights, #3 no ingest
+      idempotency, #4 TypeScript `strict` unset, #5 no migration
+      tracking. The three security-relevant findings (S-1..S-3, held
+      in `.local/`) are also fixed and deployed.
+      Medium/low findings remain as v1.x issues — unpinned Python deps
+      with no lockfile (#13), no CI (#14), per-request DB connections
+      never closed (#16), and the rest.
+      The review's own conclusion held up: the design judgement was
+      sound and the documentation unusually strong; the gap was
+      *verification* — everything confirmed by a human looking once,
+      nothing re-checking itself. That is what the five fixes changed.
+      Two corrections worth keeping. Finding #4's justification was
+      wrong as filed (see the correction section in the review doc):
+      it credited `strict` with catching the `min_speed_mph` crash,
+      but that field was typed non-null, so strict would have accepted
+      it too — enabling it produced zero errors, making it a cheap
+      guard rather than a defect being masked. And filing the
+      security-relevant findings as public GitHub issues was a
+      mistake, since this repo is public; they were moved to `.local/`
+      the following day.
+- [x] 2026-08-10 — Migration ledger (issue #12, engineering review
+      finding #5) — **the last of the five high-severity findings, so
+      the engineering practices gate is now closed.**
+      `dbo.schema_migrations` (filename, sha256, applied_at,
+      applied_by) plus `sql/migrate.py`: status / `--apply` /
+      `--baseline`, applying in numeric order, splitting on `GO`, and
+      reporting drift. `sql/README.md` is the runbook. Deliberately not
+      a framework — no down-migrations (a small DB with an archive of
+      raw source beats a reverse script nobody has tested) and no
+      transaction around the whole run, since DDL batches and `GO`
+      don't compose into one.
+      **Writing the tests found two real problems in `sql/` itself.**
+      First, `07` is used by two files, so "apply everything pending"
+      had no defined order between them; both were long applied so
+      they are left alone, `discover()` now tie-breaks on filename, and
+      the runner warns on any *new* duplicate. Second, and worse:
+      `11`, `13` and `17` each add a column and then use it, with no
+      `GO` — the exact failure that had to be fixed by hand at apply
+      time, twice. They would have failed for anyone rebuilding from
+      scratch, since these files are the only definition of the schema.
+      Separators added, which also closes issue #21, and a test now
+      asserts those migrations are multi-batch.
+      Fixing them *before* baselining was the point: editing an applied
+      migration is precisely what the checksum flags as drift, and the
+      adoption window was the only moment it was legitimate.
+      The baseline was verified rather than assumed — recording a file
+      as applied when it wasn't would write a false record into the one
+      thing meant to prevent that. 23 object-existence checks across
+      the 20 migrations, all passing, before recording anything.
+      Drift detection was then proved end-to-end: appended a comment to
+      an applied migration, confirmed it reported as DRIFT with both
+      checksums, restored it, confirmed clean.
 - [x] 2026-08-10 — Parser core under test: suite grown 22 -> 93 tests,
       covering every target the engineering review's finding #1 named
       (`compute_laps`, `compute_corner_metrics`, `compute_segment_times`,

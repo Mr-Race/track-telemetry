@@ -13,6 +13,13 @@ ALTER TABLE dbo.consumables ADD car_id INT NULL
 
 ALTER TABLE dbo.consumables ADD baseline_sessions SMALLINT NOT NULL
     CONSTRAINT DF_consumables_baseline_sessions DEFAULT 0;
+GO
+
+/* The INSERT below names car_id and baseline_sessions, which the
+   batch above has only just added - SQL Server does not reliably see
+   them without the GO. This is the migration that first taught us
+   that, on 2026-07-30; the separator is now explicit rather than
+   applied by hand. */
 
 /* Integra (car_id=2) consumables as of 2026-07-30. baseline_sessions
    is set so sessions_since_install lands on the real-world count given

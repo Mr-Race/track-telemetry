@@ -48,17 +48,26 @@ WHERE o.org_code = 'NASA-NE-HPDE';
 /* ---- events.organization (free text) -> organization_id (FK) ---- */
 ALTER TABLE dbo.events ADD organization_id INT NULL
     CONSTRAINT FK_events_organizations REFERENCES dbo.organizations(organization_id);
+GO
 
--- Both existing events are already tagged 'NASA-NE'.
+-- Both existing events are already tagged 'NASA-NE'. Separate batch:
+-- organization_id was added in the batch above and is not reliably
+-- visible until this one.
 UPDATE dbo.events SET organization_id =
     (SELECT organization_id FROM dbo.organizations WHERE org_code = 'NASA-NE-HPDE')
 WHERE organization = 'NASA-NE';
+GO
 
 /* Verify every event backfilled before tightening to NOT NULL */
 SELECT event_id, event_name, organization, organization_id FROM dbo.events;
+GO
 
+-- Tightening to NOT NULL depends on the UPDATE above having committed.
 ALTER TABLE dbo.events ALTER COLUMN organization_id INT NOT NULL;
+GO
+
 ALTER TABLE dbo.events DROP COLUMN organization;
+GO
 
 /* ---- sessions.run_group (free text) -> run_group_id (FK) ----
    Currently NULL on every session (never populated by ingestion -
@@ -67,4 +76,7 @@ ALTER TABLE dbo.events DROP COLUMN organization;
    have a logged run group. */
 ALTER TABLE dbo.sessions ADD run_group_id INT NULL
     CONSTRAINT FK_sessions_run_groups REFERENCES dbo.run_groups(run_group_id);
+GO
+
 ALTER TABLE dbo.sessions DROP COLUMN run_group;
+GO

@@ -8,6 +8,13 @@
    and lighter than a geospatial timezone lookup - every track here is
    NJMP so far, always America/New_York. */
 ALTER TABLE dbo.tracks ADD iana_timezone NVARCHAR(50) NULL;
+GO
 
+/* Separate batch: SQL Server does not reliably see a column added
+   earlier in the same batch, so this UPDATE fails with "Invalid column
+   name" without the GO above. Added 2026-08-10 while adopting the
+   migration ledger - this file had to be split by hand when it was
+   applied. */
 UPDATE dbo.tracks SET iana_timezone = 'America/New_York'
 WHERE track_name = 'NJMP Lightning' OR track_name = 'NJMP Thunderbolt';
+GO
