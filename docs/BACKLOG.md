@@ -55,6 +55,56 @@ Release mechanics to adopt at 1.0 (part of the v1.0 scope):
 git tag + GitHub Release per version, CHANGELOG.md updated with
 every release, version number shown in the dashboard footer.
 
+## Known gaps and accepted risks
+Things believed correct but not *proven* correct, plus decisions
+deliberately deferred. Kept here because WAY-OF-WORKING §1 says a
+decision that only exists in a chat doesn't exist — and an unproven
+assumption is the same kind of thing. Reviewed 2026-08-10.
+
+**Verification gaps** — shipped and believed working, never observed:
+- The 500 error envelope has never been triggered in production. Auth
+  runs first, so forcing one needs a valid token. Verified statically
+  (no `str(exc)` remains in any 500 branch) and by unit test only.
+- The ingest **duplicate path** has never run end-to-end against prod.
+  The content-hash lookup, the refresh-vs-load branch and the DB
+  constraint are each verified individually, but nothing has actually
+  POSTed the same CSV twice to the live endpoint. First real exercise
+  will be the historical backfill — watch it there.
+- The `accelerator_pos` test fixture is **synthetic**. It proves the
+  name-resolution logic, not that a real PID-0x49 export parses.
+  Blocked on getting `session_20260810_071257_v3.csv` off the phone.
+
+**Coverage gaps:**
+- `ingest/queries.py` has no tests at all — ~800 lines of SQL, and the
+  single largest untested surface. Needs a throwaway DB or a much
+  larger stub; judged the wrong trade so far, but it is a real hole.
+- **Nothing runs the 93 tests on push** (issue #14). Tests that only
+  execute when someone remembers are a weaker guarantee than the count
+  suggests. Highest-value small item outstanding.
+- No migrations ledger (issue #12): 18 files in `sql/`, no record in
+  the DB of which ran. Drift is still found by breakage.
+
+**Undecided, deliberately:**
+- Whether `event_summary()` should order sessions by `start_time`
+  rather than trusting `session_number` (own item below).
+- Whether malformed-row drops should fail the request past a threshold
+  (e.g. >1%). Counts are now reported; the threshold is unset because
+  guessing one risks rejecting a good upload at a track day.
+
+**Security:** tracked in `.local/security-findings.md` (gitignored —
+this repo is public) as S-1..S-4, with their own residual-gap notes.
+S-1..S-3 are fixed and deployed; S-4 (unpinned Python deps) is open.
+
+**Environment gotchas that cost time — check here first:**
+- `az monitor` fails to load on this CLI version; use `az rest` against
+  ARM instead. Same class of bug as `az maps account create`.
+- The serverless DB auto-pauses; the first connect after a pause times
+  out and must simply be retried.
+- `npm ci` removes the unsaved `playwright-core` used for screenshot
+  and smoke tests — reinstall with `--no-save` to keep manifests clean.
+- Azure SQL firewall rules are per-IP and the devcontainer's IP is
+  ephemeral; re-add it when connections time out immediately.
+
 ## v1.0 — finish to launch
 The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
