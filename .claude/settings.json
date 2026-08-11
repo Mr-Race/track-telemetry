@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(az account show *)",
+      "Bash(az containerapp show *)",
+      "Bash(az containerapp revision list *)",
+      "Bash(az containerapp revision show *)",
+      "Bash(az containerapp logs show *)",
+      "Bash(az containerapp env show *)",
+      "Bash(az containerapp replica list *)",
+      "Bash(az functionapp show *)",
+      "Bash(az functionapp function list *)",
+      "Bash(az functionapp config appsettings list *)",
+      "Bash(az functionapp cors show *)",
+      "Bash(az sql server firewall-rule list *)",
+      "Bash(az resource list *)",
+      "Bash(az ad app show *)",
+      "Bash(az rest --method get *)",
+      "Bash(git fetch *)",
+      "Bash(npm run lint)",
+      "mcp__claude_ai_Track_Telemetry__list_sessions",
+      "mcp__claude_ai_Track_Telemetry__get_session_detail"
+    ]
+  }
+}
