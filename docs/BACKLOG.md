@@ -101,12 +101,22 @@ client-side auth failure is currently untestable.
   allowlist and stays a manual pre-deploy step, and nothing verifies
   production after a deploy — the PR template carries that checklist
   but a checklist is not a gate.
-- **Secret scanning and push protection are unverified.** The
-  framework's setup checklist calls for them before the first real
-  commit. CodeQL code scanning and Dependabot are confirmed running;
-  these two could not be checked without repo-admin API access. Check
-  Settings -> Code security, and note the framework calls retrofitting
-  this the one mistake with no clean fix.
+- **Push protection unverified** (secret scanning itself confirmed
+  enabled by AC 2026-08-11; CodeQL and Dependabot confirmed running).
+  Push protection is a *separate* toggle under Settings -> Code
+  security, so confirming secret scanning does not confirm it. Check
+  via the UI, or
+  `gh api repos/Mr-Race/track-telemetry --jq '.security_and_analysis'`
+  — the field needs repo-admin auth, which is why it could not be
+  checked from here.
+  Worth calibrating either way: push protection only catches *known
+  provider patterns* (AWS/GitHub/Azure-style keys). It would not stop a
+  hand-rolled connection string or the contents of
+  `local.settings.json` — the `.gitignore` entries do more real work
+  there — and it has no view at all of this repo's actual incident,
+  which was security findings in public issues rather than credentials
+  in code. `SECURITY.md` and the issue template are the controls for
+  that.
 - ~~No migrations ledger~~ — closed 2026-08-10, see Done.
 
 **Undecided, deliberately:**
