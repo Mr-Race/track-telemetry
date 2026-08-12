@@ -83,11 +83,14 @@ already awake when it was measured, so the one-resume-per-page benefit
 is inferred from connection reuse rather than seen. Worth confirming
 the next time the dashboard is opened genuinely cold.
 
-**No JavaScript test runner.** The dashboard has none, so
-`restoreActiveAccount()` — written to take its instance as a parameter
-precisely so it could be stubbed — is untested, and CI's lint/typecheck/
-build would not catch a repeat of the auth bug. The whole class of
-client-side auth failure is currently untestable.
+~~**No JavaScript test runner.**~~ — closed 2026-08-12, vitest added
+with 23 tests and wired into CI. Residual: **no automated responsive
+guard**. The check that found 12 overflowing page/width combinations
+needs a browser, a dev server and an auth bypass, so CI cannot run it as
+it stands. Method if it is ever automated: assert
+`document.documentElement.scrollWidth <= clientWidth` per route per
+width — and make sure content actually rendered, because the first run
+of that check passed against an error page and proved nothing.
 
 **Coverage gaps:**
 - `ingest/queries.py` has no tests at all — ~800 lines of SQL, and the
@@ -148,39 +151,6 @@ The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline and the two pre-launch reviews. Nothing else
 blocks 1.0.
-- [ ] **Mobile/responsive pass across the dashboard** (added 2026-08-09
-      per AC). Hard requirement: **the page scrolls vertically only —
-      never sideways.** Wide content (tables) may scroll horizontally
-      *inside its own container*, but `document.body` must never exceed
-      the viewport width at any supported size.
-      This is a real gap, not a polish item: `dashboard/src/index.css`
-      currently contains **no width breakpoints at all** — the only
-      `@media` in the file is `prefers-color-scheme`. Every layout is
-      whatever the desktop rule produces, squeezed. (`index.html`'s
-      viewport meta is correct, so this is purely CSS/layout.)
-      Known culprits, from screenshots taken at 420px on 2026-08-09
-      while building the event page:
-      - `header` is a non-wrapping flex row holding the `h1`, a 6-link
-        `nav`, and the auth control. At phone widths the last nav item
-        ("Cars") runs under the "Sign in" button. Needs to wrap, or
-        collapse to a menu.
-      - `.data-table` is `width: 100%` but several tables carry 4-5
-        columns, and the event page deliberately adds `white-space:
-        nowrap` to session cells, corner labels, and date ranges (a
-        wrapped label breaks the timing-screen row rhythm). Those
-        tables need an `overflow-x: auto` wrapper so the *table*
-        scrolls, not the page.
-      - `.hero-grid` is a fixed 2-column grid; check it at ~320px,
-        where the big display-face tile values may overflow their tile.
-      Scope: audit every route (`/`, `/sessions`, `/sessions/:id`,
-      `/tracks`, `/tracks/:id`, `/events`, `/events/:id`,
-      `/consumables`, `/cars`) at ~320/390/420px and at tablet width,
-      then fix. Worth an automated guard once fixed — assert
-      `scrollWidth <= clientWidth` on `document.documentElement` per
-      route in the Playwright pass described in the 2026-08-09 event
-      page entry, so a future wide element fails loudly instead of
-      being found by eye. Note `overflow-x: hidden` on `body` is NOT
-      the fix — it hides the symptom and silently clips content.
 - [ ] **Parser must accept the `accelerator_pos` OBD channel**
       (GitHub issue #8, raised 2026-08-10 — tracked there in full).
       **TIME-BLOCKED, not effort-blocked (AC, 2026-08-12): the first
@@ -422,6 +392,51 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-12 — **Mobile/responsive pass.** The page now scrolls
+      vertically only at every phone width.
+      Measured before touching anything: **every page overflowed at
+      every phone width** — 279px past the edge at 320px — and the
+      culprit was always the six-link header nav on a non-wrapping flex
+      row. 12 of 16 page/width combinations failed; 768px was fine,
+      which is why it had never been noticed on a laptop.
+      One `max-width: 640px` breakpoint: the nav drops to its own
+      full-width wrapping row, tables become their own scroll container
+      (their cells are deliberately `nowrap` — that row rhythm is what
+      the timing-screen spec asks for, so the table scrolls rather than
+      the page), and the big display numbers shrink.
+      **The measurement caught its own flaw, which was the real
+      lesson.** The first "all clear" was measured against an *error
+      page*: `getAccessToken` now throws when there is no MSAL account,
+      so the unauthenticated preview routes rendered nothing. Tables and
+      hero tiles were never on screen, and a page with no content
+      trivially does not overflow. Relaxing that check for the
+      measurement run surfaced a real remaining overflow — the hero grid
+      at 320px, +12px, because a grid column is `min-content` by default
+      and a tile refused to shrink below "best segments, any session".
+      Fixed with `minmax(0, 1fr)`. **A green check on an empty page is
+      not a green check.**
+      Not automated: the guard needs a browser, a dev server and an auth
+      bypass, so CI cannot run it as it stands. The method is recorded
+      here — assert `document.documentElement.scrollWidth <=
+      clientWidth` per route per width, with content actually rendered —
+      and remains a known gap.
+- [x] 2026-08-12 — **vitest on the dashboard** (was a known gap). 23
+      tests. The dashboard was the one surface where a bug is total and
+      silent: lint, typecheck and build all passed while the MSAL
+      active-account bug left the app looking signed in and loading
+      nothing, and there was no runner at all to catch that class.
+      `restoreActiveAccount` is covered directly, including the
+      signed-out path — it runs before the first render, so throwing
+      there would blank the app for a visitor.
+      The pure formatters moved out of `EventSummaryPage` into
+      `src/format.ts` to be testable. They encode decisions rather than
+      cosmetics: the 6% bar floor (a zero-width bar reads as missing
+      data), U+2212 as the minus sign (it aligns with tabular digits),
+      em dashes never zeros. Each is now pinned. Wired into CI.
+      A test caught its own author: `formatDuration(3150259)` was
+      asserted as "52m". It is 52.5 minutes, rounds to 53, and 53m is
+      what the event page has always shown. The assertion was wrong,
+      not the code.
 - [x] 2026-08-12 — **Archive fully reconciled — every session now has
       segment times, an optimal lap, and a content hash. Zero gaps.**
       Final state: 15 sessions, 127 laps, 1520 segment times, 1393
