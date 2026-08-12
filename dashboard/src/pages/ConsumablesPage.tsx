@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { getConsumables, replaceConsumable, type Consumable } from "../api/client";
 import { useFetch } from "../api/useFetch";
+import { Loading } from "../components/Loading";
 
 function lifeClass(c: Consumable): string {
   if (c.overdue) return "life-critical";
@@ -146,7 +147,7 @@ export function ConsumablesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const state = useFetch(getConsumables, [refreshKey]);
 
-  if (state.status === "loading") return <p className="muted">Loading consumables…</p>;
+  if (state.status === "loading") return <Loading what="consumables" />;
   if (state.status === "error") return <p className="delta-bad">Error: {state.message}</p>;
 
   const consumables = state.data;

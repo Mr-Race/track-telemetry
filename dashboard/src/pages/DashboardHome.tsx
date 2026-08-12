@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useMsal } from "@azure/msal-react";
 import { listSessions, getConsumables, listTracks } from "../api/client";
 import { useFetch } from "../api/useFetch";
+import { Loading } from "../components/Loading";
 
 export function DashboardHome() {
   const { accounts } = useMsal();
@@ -26,7 +27,7 @@ export function DashboardHome() {
           to={recentSession ? `/sessions/${recentSession.session_id}` : "/sessions"}
         >
           <div className="quick-link-label">Most recent session</div>
-          {sessions.status === "loading" && <div className="muted">Loading…</div>}
+          {sessions.status === "loading" && <Loading />}
           {sessions.status === "error" && <div className="delta-bad">Couldn&apos;t load sessions</div>}
           {sessions.status === "ready" && recentSession && (
             <>
@@ -43,7 +44,7 @@ export function DashboardHome() {
 
         <Link className="quick-link-card" to="/consumables">
           <div className="quick-link-label">Consumables due soon</div>
-          {consumables.status === "loading" && <div className="muted">Loading…</div>}
+          {consumables.status === "loading" && <Loading />}
           {consumables.status === "error" && <div className="delta-bad">Couldn&apos;t load consumables</div>}
           {consumables.status === "ready" && dueSoon.length > 0 && (
             <>
@@ -60,7 +61,7 @@ export function DashboardHome() {
 
         <Link className="quick-link-card" to="/tracks">
           <div className="quick-link-label">Track directory</div>
-          {tracks.status === "loading" && <div className="muted">Loading…</div>}
+          {tracks.status === "loading" && <Loading />}
           {tracks.status === "error" && <div className="delta-bad">Couldn&apos;t load tracks</div>}
           {tracks.status === "ready" && (
             <div className="quick-link-value">

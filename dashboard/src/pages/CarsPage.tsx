@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { createCar, listCars } from "../api/client";
 import { useFetch } from "../api/useFetch";
+import { Loading } from "../components/Loading";
 
 export function CarsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -107,7 +108,7 @@ export function CarsPage() {
       </form>
 
       <h3>Cars</h3>
-      {cars.status === "loading" && <p className="muted">Loading cars…</p>}
+      {cars.status === "loading" && <Loading what="cars" />}
       {cars.status === "error" && <p className="delta-bad">Error: {cars.message}</p>}
       {cars.status === "ready" && cars.data.length === 0 && (
         <p className="muted">No cars yet.</p>

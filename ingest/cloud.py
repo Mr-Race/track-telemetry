@@ -8,6 +8,9 @@ when running in Azure, and to the local `az login` session during
 `func start` testing - no branching needed between environments.
 """
 
+import logging
+import threading
+
 import certifi
 import pytds
 from azure.identity import DefaultAzureCredential
@@ -119,11 +122,32 @@ class _QmarkConnection:
         return getattr(self._cnx, name)
 
 
-def get_cloud_connection(server, database):
-    cred = DefaultAzureCredential()
+_credential = None
+_credential_lock = threading.Lock()
 
+_connection = None
+_connection_key = None
+_connection_lock = threading.Lock()
+
+
+def _get_credential():
+    """One credential for the process.
+
+    DefaultAzureCredential caches tokens internally, but only for its own
+    lifetime - building a new one per request threw that away and fetched
+    a fresh token every time.
+    """
+    global _credential
+    if _credential is None:
+        with _credential_lock:
+            if _credential is None:
+                _credential = DefaultAzureCredential()
+    return _credential
+
+
+def _open_connection(server, database):
     def get_token():
-        return cred.get_token(SQL_SCOPE).token
+        return _get_credential().get_token(SQL_SCOPE).token
 
     cnx = pytds.connect(
         server=server,
@@ -137,8 +161,60 @@ def get_cloud_connection(server, database):
     return _QmarkConnection(cnx)
 
 
+def _is_alive(cnx):
+    """Cheap liveness probe. A pooled connection can be closed under us
+    by an idle timeout or by the database pausing, and the failure shows
+    up as an error on the next real query - which would surface to a
+    user rather than being retried here."""
+    try:
+        cur = cnx.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        return True
+    except Exception:
+        return False
+
+
+def get_cloud_connection(server, database):
+    """A shared connection for the process, opened on first use.
+
+    Previously every request built its own credential and its own
+    connection. On the free-tier serverless database that was the
+    dominant cost: it auto-pauses, the first connect after a pause takes
+    30-60s to resume it, and because each concurrent call opened its own
+    connection each one paid that separately. Measured 2026-08-11:
+    48.7s / 47.7s / 46.7s for three calls on one page load, which is
+    indistinguishable from the app being broken. Connections were also
+    never closed.
+
+    Holding the lock across the connect is deliberate rather than
+    incidental: concurrent callers queue behind one resume instead of
+    starting several. They wait roughly as long as before, once,
+    and every request after that is fast.
+
+    See GitHub issue #16.
+    """
+    global _connection, _connection_key
+    key = (server, database)
+
+    with _connection_lock:
+        if _connection is not None and _connection_key == key and _is_alive(_connection):
+            return _connection
+
+        if _connection is not None:
+            try:
+                _connection.close()
+            except Exception:
+                logging.debug("discarding a dead pooled connection",
+                              exc_info=True)
+
+        _connection = _open_connection(server, database)
+        _connection_key = key
+        return _connection
+
+
 def upload_raw_blob(account_url, container, blob_name, data):
-    cred = DefaultAzureCredential()
-    client = BlobServiceClient(account_url=account_url, credential=cred)
+    client = BlobServiceClient(account_url=account_url,
+                                credential=_get_credential())
     client.get_container_client(container).upload_blob(
         blob_name, data, overwrite=False)

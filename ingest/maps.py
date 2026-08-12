@@ -56,7 +56,12 @@ def compute_zoom(min_lat, max_lat, min_lon, max_lon, width, height,
 
 
 def _maps_token():
-    return DefaultAzureCredential().get_token(MAPS_SCOPE).token
+    # Reuses the process-wide credential from cloud.py: a fresh
+    # DefaultAzureCredential per call discards its own token cache and
+    # re-fetches every time (issue #16).
+    from ingest.cloud import _get_credential
+
+    return _get_credential().get_token(MAPS_SCOPE).token
 
 
 def fetch_satellite_image(client_id, min_lat, max_lat, min_lon, max_lon,

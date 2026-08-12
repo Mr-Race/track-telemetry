@@ -74,16 +74,14 @@ assumption is the same kind of thing. Reviewed 2026-08-10.
   name-resolution logic, not that a real PID-0x49 export parses.
   Blocked on getting `session_20260810_071257_v3.csv` off the phone.
 
-**Live UX problem, measured 2026-08-10:** the first requests after the
-database has auto-paused take **~47 seconds** (48.7s, 47.7s, 46.7s
-measured on `list_sessions`, `list_tracks`, `get_consumables`). The
-free-tier serverless DB resumes in 30-60s, and because a new connection
-is opened per request (issue #16) each concurrent call pays it
-separately rather than sharing one resume. To a user this is
-indistinguishable from the app being broken — it is what made the auth
-incident look unresolved after it had been fixed. Fixing #16 would let
-one resume cover the page; a keep-warm ping or a loading state that
-says "waking the database" would address the perception.
+**~47s cold start** — ~~fixed 2026-08-11~~ (issue #16, see Done): one
+pooled connection and credential per process, so a page load pays at
+most one database resume instead of one per concurrent call, plus a
+loading state that says the database is waking. **Residual: a true cold
+resume has not been observed with the fix in place** — the database was
+already awake when it was measured, so the one-resume-per-page benefit
+is inferred from connection reuse rather than seen. Worth confirming
+the next time the dashboard is opened genuinely cold.
 
 **No JavaScript test runner.** The dashboard has none, so
 `restoreActiveAccount()` — written to take its instance as a parameter
@@ -183,17 +181,6 @@ blocks 1.0.
       page entry, so a future wide element fails loudly instead of
       being found by eye. Note `overflow-x: hidden` on `body` is NOT
       the fix — it hides the symptom and silently clips content.
-- [ ] **First-request latency after the DB auto-pauses (~47s)** —
-      promoted from v1.x (issue #16) on 2026-08-11 because it fails
-      v1.0's own bar of *no known broken pieces in prod*. Measured, not
-      estimated: 48.7s / 47.7s / 46.7s on `list_sessions`, `list_tracks`
-      and `get_consumables`. The free-tier serverless DB resumes in
-      30-60s and, because a new connection is opened per request, every
-      concurrent call pays it separately instead of sharing one resume.
-      To a user this is indistinguishable from the app being broken —
-      it is exactly what made the 2026-08-10 auth incident look
-      unresolved after it had been fixed. Fix #16 so one resume covers
-      the page, and say so in the UI rather than showing silence.
 - [ ] **Parser must accept the `accelerator_pos` OBD channel**
       (GitHub issue #8, raised 2026-08-10 — tracked there in full,
       summarized here because it gates the backfill item below).
@@ -437,6 +424,38 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-11 — **Cold-start latency fixed** (issue #16, promoted
+      into v1.0 the same day: a 47-second first page load fails the
+      release's own bar of *no known broken pieces in prod*).
+      Every request built its own `DefaultAzureCredential` and its own
+      SQL connection, and none were ever closed. On the free-tier
+      serverless database that was the dominant cost — it auto-pauses,
+      resuming takes 30-60s, and each concurrent call paid that
+      separately: 48.7s / 47.7s / 46.7s measured for three calls on one
+      page load.
+      Now one credential and one connection per process, with a
+      liveness probe and reconnect, because a pooled connection gets
+      closed under you by an idle timeout or by the database pausing
+      and that must be retried rather than surfaced as an error.
+      **Holding the lock across the connect is deliberate**: concurrent
+      callers queue behind one resume instead of starting several, so
+      they wait about as long as before but only once.
+      UI half: a shared `Loading` component that after 4 seconds says
+      the database is waking and that later requests are fast. Silence
+      for the best part of a minute is what made a *fixed* app look
+      broken during the 2026-08-10 incident, so the message is part of
+      the fix rather than a nicety.
+      Measured after: the second and third `get_cloud_connection` calls
+      return the same object in 0.07s / 0.14s, and the three page-load
+      queries run in 0.22-0.29s each. **Not measured: a true cold
+      resume with the fix in place** — the database was already awake,
+      so the one-resume-per-page benefit is inferred from reuse rather
+      than observed.
+      Also worth recording: the first attempt to edit this file used a
+      `sed` range that overmatched and silently deleted most of the
+      known-gaps section. Caught by re-reading the file rather than
+      trusting the command, and restored with `git checkout`. Use
+      targeted edits on prose, not line-range `sed`.
 - [x] 2026-08-11 — **Instructor-driven session attributed correctly**
       (GitHub issue #2, the only place the data was actually *wrong*).
       Session 13 was driven by AC's instructor in AC's car but carried

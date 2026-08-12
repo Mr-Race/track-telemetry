@@ -406,6 +406,13 @@ a {
   margin-top: 6px;
 }
 
+/* Shown only once a load is slow enough to look broken. */
+.loading-note {
+  font-size: 13px;
+  max-width: 46ch;
+  margin-top: 4px;
+}
+
 /* Names the driver on a session someone else drove. Muted, because it
    is a qualifier on the row rather than a value of its own. */
 .session-driver {

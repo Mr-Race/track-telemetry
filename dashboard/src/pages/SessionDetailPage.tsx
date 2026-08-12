@@ -5,6 +5,7 @@ import { useFetch } from "../api/useFetch";
 import { StatTile } from "../components/StatTile";
 import { CornerDeltaTable } from "../components/CornerDeltaTable";
 import { TrackPanel } from "../components/TrackPanel";
+import { Loading } from "../components/Loading";
 
 function formatStdev(ms: number): string {
   return `±${(ms / 1000).toFixed(3)}s`;
@@ -75,7 +76,7 @@ export function SessionDetailPage() {
   );
   const state = useFetch(load, [id, refreshKey]);
 
-  if (state.status === "loading") return <p className="muted">Loading session…</p>;
+  if (state.status === "loading") return <Loading what="session" />;
   if (state.status === "error") return <p className="delta-bad">Error: {state.message}</p>;
 
   const [detail, summary] = state.data;

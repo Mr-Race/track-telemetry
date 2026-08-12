@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { Link } from "react-router-dom";
 import { listSessions, type SessionListItem } from "../api/client";
 import { useFetch } from "../api/useFetch";
+import { Loading } from "../components/Loading";
 
 // Mirrors ingest/racechrono_parser.py's fmt_ms, for lap times computed
 // client-side (event-level averages) that don't come pre-formatted from the API.
@@ -72,7 +73,7 @@ function eventAvgValidLap(sessions: SessionListItem[]): string {
 export function SessionListPage() {
   const state = useFetch(listSessions, []);
 
-  if (state.status === "loading") return <p className="muted">Loading sessions…</p>;
+  if (state.status === "loading") return <Loading what="sessions" />;
   if (state.status === "error") return <p className="delta-bad">Error: {state.message}</p>;
 
   const sessions = state.data;

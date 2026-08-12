@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { listTracks } from "../api/client";
 import { useFetch } from "../api/useFetch";
+import { Loading } from "../components/Loading";
 
 export function TrackDirectoryPage() {
   const state = useFetch(listTracks, []);
 
-  if (state.status === "loading") return <p className="muted">Loading tracks…</p>;
+  if (state.status === "loading") return <Loading what="tracks" />;
   if (state.status === "error") return <p className="delta-bad">Error: {state.message}</p>;
 
   const tracks = state.data;

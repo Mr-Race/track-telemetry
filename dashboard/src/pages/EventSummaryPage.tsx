@@ -4,6 +4,7 @@ import { getEventSummary, type EventSessionRow, type EventSummary } from "../api
 import { useFetch } from "../api/useFetch";
 import { StatTile } from "../components/StatTile";
 import { CornerDeltaTable } from "../components/CornerDeltaTable";
+import { Loading } from "../components/Loading";
 
 // Any hero tile whose data doesn't exist renders an em dash, never a
 // zero - a missing optimal lap is not a 0:00.000.
@@ -241,7 +242,7 @@ export function EventSummaryPage() {
 
   const state = useFetch(() => getEventSummary(id), [id]);
 
-  if (state.status === "loading") return <p className="muted">Loading event…</p>;
+  if (state.status === "loading") return <Loading what="event" />;
   if (state.status === "error") return <p className="delta-bad">Error: {state.message}</p>;
 
   const event = state.data;

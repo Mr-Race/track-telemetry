@@ -9,6 +9,7 @@ import {
   type EventPhase,
 } from "../api/client";
 import { useFetch } from "../api/useFetch";
+import { Loading } from "../components/Loading";
 
 // Render order matches the server's row order; empty groups collapse
 // rather than render an empty header.
@@ -192,7 +193,7 @@ export function EventsPage() {
       </form>
 
       <h3>Events</h3>
-      {events.status === "loading" && <p className="muted">Loading events…</p>}
+      {events.status === "loading" && <Loading what="events" />}
       {events.status === "error" && <p className="delta-bad">Error: {events.message}</p>}
       {events.status === "ready" && events.data.length === 0 && (
         <p className="muted">No events yet.</p>
