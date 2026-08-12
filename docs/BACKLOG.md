@@ -260,6 +260,14 @@ blocks 1.0.
       CSVs exist outside this devcontainer (phone/laptop) and still
       need to land in `data/` before `--backfill` can be run against
       them too.
+      **Decide how a driver gets flagged at ingest before this runs**
+      (from issue #2, closed 2026-08-11). Any other instructor-driven
+      or shared-seat session in the archive needs the same attribution
+      session 13 just got, and the CSV metadata cannot say who drove —
+      `driver_id` simply defaults to 1. Backfilling first and
+      reattributing afterwards means every personal-best query is wrong
+      in between, which is precisely how issue #2 went unnoticed for
+      weeks. A `--driver` flag on the CLI is probably enough.
 - [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
       the last unauthenticated endpoint. The information security due
       diligence item is now fully closed (2026-08-03, see Done below),
