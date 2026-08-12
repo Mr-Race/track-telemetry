@@ -146,6 +146,9 @@ export interface NewEvent {
 export interface EventSessionRow {
   session_id: number;
   session_number: number;
+  // Event hero stats are not driver-scoped, so the row has to say who
+  // drove it - otherwise an instructor's lap reads as the owner's.
+  driver: string;
   start_time: string | null;
   best_lap_ms: number | null;
   best_lap: string | null;

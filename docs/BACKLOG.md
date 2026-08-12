@@ -183,18 +183,17 @@ blocks 1.0.
       page entry, so a future wide element fails loudly instead of
       being found by eye. Note `overflow-x: hidden` on `body` is NOT
       the fix — it hides the symptom and silently clips content.
-- [ ] **Event 1's sessions are numbered out of chronological order**
-      (found 2026-08-10 by the ordering change, see Done). Numbered
-      S1, S4, S3 by time — S4 ran 09:51 on 05-17, S3 ran 15:52. The
-      page is now correct regardless (it orders by `start_time`), but
-      the labels read `1, 4, 3` on screen, which is the visible tell
-      that the numbering is wrong.
-      **Deliberately not renumbered yet**, unlike event 3: one of these
-      is the instructor-driven session in GitHub issue #2 (session_id
-      13, best lap 1:21.837 — the lap AC didn't drive). Reassigning the
-      driver may change whether that session belongs in the event at
-      all, and renumbering first would just have to be redone. Fix #2
-      first, then renumber.
+- [ ] **First-request latency after the DB auto-pauses (~47s)** —
+      promoted from v1.x (issue #16) on 2026-08-11 because it fails
+      v1.0's own bar of *no known broken pieces in prod*. Measured, not
+      estimated: 48.7s / 47.7s / 46.7s on `list_sessions`, `list_tracks`
+      and `get_consumables`. The free-tier serverless DB resumes in
+      30-60s and, because a new connection is opened per request, every
+      concurrent call pays it separately instead of sharing one resume.
+      To a user this is indistinguishable from the app being broken —
+      it is exactly what made the 2026-08-10 auth incident look
+      unresolved after it had been fixed. Fix #16 so one resume covers
+      the page, and say so in the UI rather than showing silence.
 - [ ] **Parser must accept the `accelerator_pos` OBD channel**
       (GitHub issue #8, raised 2026-08-10 — tracked there in full,
       summarized here because it gates the backfill item below).
@@ -430,6 +429,41 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-11 — **Instructor-driven session attributed correctly**
+      (GitHub issue #2, the only place the data was actually *wrong*).
+      Session 13 was driven by AC's instructor in AC's car but carried
+      the default `driver_id = 1` ('Me'), and **nothing in `queries.py`
+      filtered on driver at all** — so NJMP Lightning's personal best
+      read **1:21.837**, a lap AC never drove, instead of the real
+      **1:24.975** (session 9).
+      `sql/20` adds an `Instructor` driver, reattributes session 13, and
+      records the lap in `dbo.benchmarks` — per AC, it is a legitimate
+      reference for what the car can do, and a lap belonging to someone
+      who isn't you is precisely what that table is for. Applied through
+      the new ledger (`migrate.py --apply`, three GO-separated batches,
+      recorded automatically) — the first real use of it.
+      `list_tracks` and `get_track_benchmarks` now scope the personal
+      best to a driver, taken as a parameter defaulting to
+      `ME_DRIVER_ID` so multi-user (v2) resolves it from the
+      authenticated user without rewriting the queries.
+      **Event hero stats are deliberately NOT driver-scoped** (AC's
+      call: "event best" means the fastest lap turned that day by
+      anyone), so event 1 still reports 1:21.837. That only stays
+      honest if the row says who drove it, so `event_summary` now joins
+      `dbo.drivers` and the sessions table labels any session that
+      wasn't AC's. The decision and the label are load-bearing on each
+      other.
+      Verified live: Lightning PB is now 1:24.975 (session 9), the
+      Instructor benchmark shows 1:21.837, and event 1's S2 row reads
+      `Instructor`. Guarded by tests that assert the driver filter is
+      still in the SQL — the parameter alone would look right while
+      being ignored.
+- [x] 2026-08-11 — Renumbered event 1's sessions chronologically
+      (S1, S4, S3 -> S1, S2, S3). Was blocked on issue #2 above:
+      reassigning the driver could have changed what belonged in the
+      event, so renumbering first would have had to be redone. The
+      instructor session is now S2, between the two of AC's, which is
+      what actually happened that day.
 - [x] 2026-08-10 — **Production incident: signed in, every API call
       401, no data.** Fixed and confirmed (200s in App Insights, zero
       token rejections, zero exceptions).

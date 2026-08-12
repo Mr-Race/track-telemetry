@@ -9,6 +9,17 @@ from zoneinfo import ZoneInfo
 
 from .racechrono_parser import DEFAULT_TRACK_TZ, fmt_ms
 
+# Whose laps count as "personal" bests. Single-user today, so this is a
+# constant rather than a lookup - but it is threaded through as a
+# parameter so multi-user (v2) resolves it from the authenticated user
+# via dbo.drivers.entra_object_id without rewriting the queries.
+#
+# It exists because nothing filtered on driver at all: an
+# instructor-driven session carried the default driver_id and every
+# personal-best computation returned a lap AC didn't drive. See GitHub
+# issue #2.
+ME_DRIVER_ID = 1
+
 # Render order for the events list's temporal split (spec:
 # docs/specs/event-summary-page.md).
 _PHASE_ORDER = {"in_progress": 0, "upcoming": 1, "past": 2}
@@ -343,9 +354,12 @@ def session_summary(cnx, session_id):
     }
 
 
-def list_tracks(cnx):
+def list_tracks(cnx, driver_id=ME_DRIVER_ID):
     """Every track/configuration with corner count and my personal best,
-    for the read-only track directory page."""
+    for the read-only track directory page.
+
+    The personal best is scoped to one driver: without it, a session
+    someone else drove in the same car counts as your PB (issue #2)."""
     cur = cnx.cursor()
     cur.execute("""
         SELECT t.track_id, t.track_name, t.configuration, t.length_miles,
@@ -359,9 +373,10 @@ def list_tracks(cnx):
             JOIN dbo.sessions s ON s.session_id = l.session_id
             JOIN dbo.events e ON e.event_id = s.event_id
             WHERE e.track_id = t.track_id AND l.is_valid = 1
+              AND s.driver_id = ?
             ORDER BY l.lap_time_ms ASC
         ) pb
-        ORDER BY t.track_name, t.configuration""")
+        ORDER BY t.track_name, t.configuration""", driver_id)
 
     tracks = []
     for r in cur.fetchall():
@@ -473,8 +488,9 @@ def event_summary(cnx, event_id):
     cur.execute("""
         SELECT s.session_id, s.session_number, s.start_time,
                lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms,
-               opt_agg.optimal_lap_ms, s.air_temp_f
+               opt_agg.optimal_lap_ms, s.air_temp_f, d.display_name
         FROM dbo.sessions s
+        JOIN dbo.drivers d ON d.driver_id = s.driver_id
         OUTER APPLY (
             SELECT MIN(CASE WHEN l.is_valid = 1 THEN l.lap_time_ms END)
                        AS best_lap_ms,
@@ -521,6 +537,12 @@ def event_summary(cnx, event_id):
             "optimal_lap_ms": r[5],
             "optimal_lap": fmt_ms(r[5]) if r[5] is not None else None,
             "air_temp_f": float(r[6]) if r[6] is not None else None,
+            # Event hero stats deliberately are NOT driver-scoped (AC,
+            # 2026-08-11: "event best" is the fastest lap turned that
+            # day by anyone). That only stays honest if the row says who
+            # drove it - otherwise the page credits AC with an
+            # instructor's lap. See GitHub issue #2.
+            "driver": r[7],
         }
         for r in cur.fetchall()
     ]
@@ -673,7 +695,7 @@ def set_session_car(cnx, session_id, car_id):
     cnx.commit()
 
 
-def get_track_benchmarks(cnx, track_id):
+def get_track_benchmarks(cnx, track_id, driver_id=ME_DRIVER_ID):
     """My all-time personal best at this track, plus any manually
     entered friends' benchmark laps."""
     cur = cnx.cursor()
@@ -684,13 +706,16 @@ def get_track_benchmarks(cnx, track_id):
         raise ValueError(f"No track with track_id={track_id}")
     track_name = row[0]
 
+    # Scoped to one driver for the same reason as list_tracks: an
+    # instructor's lap in your car is a benchmark, not your PB.
     cur.execute("""
         SELECT TOP 1 l.lap_time_ms, l.session_id, s.session_date
         FROM dbo.laps l
         JOIN dbo.sessions s ON s.session_id = l.session_id
         JOIN dbo.events e ON e.event_id = s.event_id
         WHERE e.track_id = ? AND l.is_valid = 1
-        ORDER BY l.lap_time_ms ASC""", track_id)
+          AND s.driver_id = ?
+        ORDER BY l.lap_time_ms ASC""", track_id, driver_id)
     pb_row = cur.fetchone()
     personal_best = None
     if pb_row is not None:

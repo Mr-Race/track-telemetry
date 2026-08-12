@@ -406,6 +406,16 @@ a {
   margin-top: 6px;
 }
 
+/* Names the driver on a session someone else drove. Muted, because it
+   is a qualifier on the row rather than a value of its own. */
+.session-driver {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 .tone-fastest {
   color: var(--fastest);
 }

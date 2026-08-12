@@ -182,6 +182,12 @@ function SessionsTable({ event }: { event: EventSummary }) {
                     <Link to={`/sessions/${s.session_id}`}>
                       S{s.session_number} &middot; {formatStartTime(s.start_time)}
                     </Link>
+                    {/* Hero stats count every driver's laps, so a
+                        session someone else drove has to say so here or
+                        the page silently credits it to the owner. */}
+                    {s.driver !== "Me" && (
+                      <span className="session-driver"> {s.driver}</span>
+                    )}
                   </td>
                   {/* The event's best lap is purple wherever it appears. */}
                   <td
