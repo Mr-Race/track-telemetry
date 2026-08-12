@@ -71,7 +71,15 @@ class EntraTokenVerifier(TokenVerifier):
             # Any failure (bad signature, wrong aud/iss, expired) -> the
             # SDK turns a None here into a 401 with a WWW-Authenticate
             # header pointing at the protected-resource metadata.
-            log.debug("token rejected at decode: %s", type(exc).__name__)
+            #
+            # WARNING, not DEBUG: this was demoted to DEBUG on
+            # 2026-08-11 while removing the noisy per-request
+            # instrumentation, which made it invisible in production -
+            # and then a 401 with no token was indistinguishable from a
+            # token that failed validation. Those need opposite fixes.
+            # The exception *type* and `aud` are app-level facts, not
+            # user data; claim values still stay out.
+            log.warning("token rejected at decode: %s", type(exc).__name__)
             return None
 
         # aud/iss/signature only prove "a token this resource's JWKS can
@@ -81,11 +89,14 @@ class EntraTokenVerifier(TokenVerifier):
         # a mis-scoped token is rejected outright.
         scopes = claims.get("scp", "").split()
         if REQUIRED_SCOPE not in scopes:
-            log.debug("token rejected: required scope absent (aud=%r)",
-                      claims.get("aud"))
+            log.warning("token rejected: required scope %r absent (aud=%r)",
+                        REQUIRED_SCOPE, claims.get("aud"))
             return None
 
-        log.debug("token accepted (aud=%r)", claims.get("aud"))
+        # Success stays at INFO and names only the audience - enough to
+        # confirm which resource the token was issued for, which is the
+        # open question with the connector.
+        log.info("token accepted (aud=%r)", claims.get("aud"))
 
         # Return the qualified scope so the SDK's RequireAuthMiddleware,
         # whose required_scopes is set to QUALIFIED_SCOPE (to drive the
