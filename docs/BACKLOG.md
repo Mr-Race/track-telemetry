@@ -115,15 +115,13 @@ client-side auth failure is currently untestable.
   which was security findings in public issues rather than credentials
   in code. `SECURITY.md` and the issue template are the controls for
   that.
-- **Private vulnerability reporting is disabled**, and `SECURITY.md`
-  tells outside reporters to open a private security advisory. That
-  path only exists for non-maintainers when the setting is enabled, so
-  the policy currently points at a locked door — and the fallback a
-  reporter would reach for is a public issue, which is the exact
-  outcome the policy exists to prevent. One click on Settings -> Code
-  security ("Enable vulnerability reporting"). If it is deliberately
-  left off, `SECURITY.md` needs amending to name a different private
-  channel instead.
+- ~~Private vulnerability reporting disabled~~ — enabled 2026-08-11, so
+  `SECURITY.md`'s "open a private advisory" instruction now points
+  somewhere real rather than at a locked door whose fallback was a
+  public issue. Unlike the rest of the security settings, this one is
+  verifiable without admin auth:
+  `curl -s https://api.github.com/repos/Mr-Race/track-telemetry/private-vulnerability-reporting`
+  returns `{"enabled": true}`.
 - ~~No migrations ledger~~ — closed 2026-08-10, see Done.
 
 **Undecided, deliberately:**
