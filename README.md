@@ -31,30 +31,38 @@ Power BI was dropped from the roadmap (2026-07-22, see
 visualization layer, to stay free-tier/no-license.
 
 ## Status
-MVP launched (2026-07-24) — see `docs/BACKLOG.md`'s MVP checklist and
-`## Done` log for the full history. Live pieces:
+Approaching 1.0 — see `docs/BACKLOG.md` for versioned scope, known gaps
+and a dated `## Done` log. Live pieces:
 - [x] Azure SQL (free tier, Entra-only auth) + Blob provisioned
 - [x] Schema: config-aware tracks, corner apex zones, run groups,
-      organizations/events, drivers
-- [x] Parser: laps + corner metrics (incl. OBD throttle/RPM),
+      organizations/events, drivers, cars, segment times
+- [x] Parser: laps + corner metrics (incl. OBD pedal position/RPM),
       validated against real sessions
 - [x] Ingestion Function (`POST /api/ingest`) + iOS Shortcut share-sheet
-      upload
-- [x] MCP server (read-only, registered as a Claude custom connector)
-- [x] React dashboard: session list/detail, consumables, track
-      directory + satellite view, benchmarks
+      upload, with content-hash idempotency
+- [x] **MCP server at `https://mcp.mr-race.com/mcp`, authenticated with
+      OAuth 2.1 + PKCE via Entra, working as a Claude connector** —
+      conversational analysis of real session data
+- [x] React dashboard: session list/detail, event summary, consumables,
+      track directory + satellite view, benchmarks
 - [x] Entra ID auth (MSAL, OAuth 2.1 + PKCE) — dashboard sign-in +
       bearer-token-protected API
-- [x] First write-capable dashboard feature: event management
-      (Block 6 step 1)
-- [ ] Remaining Block 6 items: track management UI, corner apex editor
-- [ ] Block 7 hardening (API Management, storage network lockdown)
-- [ ] OAuth on the MCP server, custom-domain login page
+- [x] Write-capable dashboard features: event management, car catalog
+- [x] Engineering practices + information security reviews complete,
+      all high-severity findings closed
+- [x] CI on every push: pytest (123), lint, typecheck, build
+- [ ] Remaining v1.0: docs baseline, mobile/responsive pass, historical
+      backfill, release mechanics — see `docs/BACKLOG.md`
 
 ## Repo layout
-- sql/ - schema and seed scripts, run in order
-- ingest/ - RaceChrono parser + queries (stdlib parsing, pyodbc load,
-  shared by the Function app and MCP server)
-- dashboard/ - React + Vite + TypeScript dashboard (Azure Static Web Apps)
-- function_app.py - Azure Functions app: ingest + dashboard read/write API
-- docs/ - backlog, MCP server setup, iOS Shortcut setup
+- `sql/` - numbered migrations, applied and recorded via
+  `python sql/migrate.py` (see `sql/README.md`)
+- `ingest/` - RaceChrono parser + shared queries (stdlib-only parsing;
+  cloud access separate), used by both the Function App and MCP server
+- `mcp_server/` - read-only MCP server (Container Apps) and its Entra
+  token verifier
+- `dashboard/` - React + Vite + TypeScript dashboard (Static Web Apps)
+- `function_app.py` - Azure Functions app: ingest + dashboard read/write API
+- `tests/` - pytest suite; `pip install -r requirements-dev.txt`, then
+  `pytest`
+- `docs/` - way of working, backlog, specs, MCP and iOS Shortcut setup

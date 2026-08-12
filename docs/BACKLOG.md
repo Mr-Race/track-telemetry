@@ -255,10 +255,6 @@ blocks 1.0.
       reattributing afterwards means every personal-best query is wrong
       in between, which is precisely how issue #2 went unnoticed for
       weeks. A `--driver` flag on the CLI is probably enough.
-- [ ] **OAuth 2.1 + PKCE via Entra ID on the MCP server** — closes
-      the last unauthenticated endpoint. The information security due
-      diligence item is now fully closed (2026-08-03, see Done below),
-      so this is unblocked.
 - [ ] **Docs baseline (living documentation v1)** — technical +
       business doc sets as docs-as-code in the repo
       (docs/technical/, docs/business/), updated in the same commits
@@ -424,6 +420,65 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-12 — **OAuth 2.1 on the MCP server WORKS END TO END.**
+      The Claude connector authorizes, and conversational queries
+      against real session data return correct results. This was the
+      product's premise — the dashboard is the secondary surface — and
+      it had been blocked since 2026-08-07.
+      **Root cause: one trailing slash.** Entra compares the client's
+      RFC 8707 `resource` parameter *literally* against the app's
+      Application ID URI and rejects the authorize request when they
+      differ. The MCP SDK builds its RFC 9728 metadata from a pydantic
+      `AnyHttpUrl`, which normalises a bare host by appending `/`. And
+      Entra refuses to *store* an App ID URI ending in a slash. So the
+      two could never agree. Proved by running the authorize endpoint
+      directly with one parameter changed:
+      `resource=https://mcp.mr-race.com/` -> AADSTS9010010,
+      `resource=https://mcp.mr-race.com` -> accepted.
+      **Why it took so long to find:** the rejection happens *before
+      authentication*, so Entra writes no sign-in log at all. Filtering
+      sign-ins by the app returned nothing, which reads exactly like a
+      credentials problem — and sent us looking at secrets, which were
+      fine.
+      The custom domain was necessary but not sufficient. Entra only
+      accepts an `https` App ID URI on a **verified domain**, so
+      `*.azurecontainerapps.io` could never work no matter what.
+      `mr-race.com` is now verified in the CIAM tenant and the server is
+      bound to **`mcp.mr-race.com`** with a managed certificate. That
+      promotes the custom-domain item from a cosmetic login-page nicety
+      to the enabler for the product's core capability.
+      Three gates were cleared in sequence, each masking the next:
+      1. Claude attempted Dynamic Client Registration; the server is a
+         Resource Server and doesn't offer it. Fixed by supplying the
+         Client ID (and secret) in the connector — it is optional in the
+         UI only because some servers support DCR.
+      2. Custom domain + App ID URI alignment.
+      3. The trailing slash, fixed by owning the metadata route:
+         `server.py` now builds the Starlette app and swaps that route,
+         because the SDK appends custom routes *after* its own and
+         Starlette matches first-wins, so `@mcp.custom_route` cannot
+         shadow it.
+      **Process note worth keeping:** I recommended descoping this to
+      v1.x on the grounds that the endpoint was already secured, so
+      v1.0's "all endpoints secured" bar was met. That was technically
+      true and completely beside the point — AC pushed back, correctly.
+      A release bar is a floor, not a definition of the product. When a
+      gap is in the thing the product exists to do, "the checklist
+      passes" is the wrong argument.
+- [x] 2026-08-12 — MCP tools now return `driver` on `list_sessions` and
+      `get_session_detail`. Immediately after the connector started
+      working, Claude read the session list and reported the
+      instructor's 1:21.837 as a personal best still needing a fix —
+      *after* the attribution had already been corrected. It was
+      reasoning correctly from an incomplete payload: a lap time with no
+      driver attached, sitting in a list of "my" sessions.
+      The dashboard got that label the day before, because it was
+      obvious the page would otherwise mislead. The same reasoning was
+      not applied to the MCP tools, which are the *more* important
+      surface. **A model reasons confidently from whatever fields it is
+      handed; omitted context does not read as absent, it reads as not
+      applicable.** Treat tool payloads as the primary UI, not a
+      by-product of the dashboard's needs.
 - [x] 2026-08-11 — **Cold-start latency fixed** (issue #16, promoted
       into v1.0 the same day: a 47-second first page load fails the
       release's own bar of *no known broken pieces in prod*).
@@ -912,10 +967,14 @@ identity-level scope; design as one coherent release.
       converts at UTC-4, a January one at UTC-5). Note the backfill is
       deliberately NOT idempotent - running it twice would shift twice -
       so it was a one-shot, recorded here rather than kept as a script.
-- [~] 2026-08-07 — OAuth 2.1 on the MCP server (last unauthenticated
-      endpoint, tracked v1.0 item). SERVER SIDE SHIPPED & LIVE, CLAUDE
-      CONNECTION BLOCKED by a known Entra↔MCP incompatibility — see
-      "Blocked / next" at the end of this entry.
+- [x] 2026-08-07 — OAuth 2.1 on the MCP server (server side).
+      **RESOLVED 2026-08-12 — see the entry at the top of this log.**
+      The "Blocked / next" plan below was written before the cause was
+      known and is kept for the record; note that its plan (1) turned
+      out to be impossible as stated, because Entra will not accept an
+      `https` Application ID URI on an unverified domain, and its
+      diagnosis of a generic "Entra↔MCP incompatibility" was only half
+      right — the specific cause was a trailing slash.
       What shipped: `ca-track-telemetry-mcp` is now an OAuth Resource
       Server. New `mcp_server/auth.py` (`EntraTokenVerifier`, async
       `TokenVerifier`) validates CIAM bearer tokens via PyJWT/JWKS —

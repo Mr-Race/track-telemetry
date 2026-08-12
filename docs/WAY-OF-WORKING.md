@@ -123,7 +123,47 @@ findings in a public repo are a disclosure. Use private advisory
 drafts for anything unresolved, and publish the write-up once the
 hole is closed.
 
-## 11. Scope decisions are features
+## 11. A release bar is a floor, not a definition of the product
+
+Checklists describe the minimum. They do not know what the thing is
+*for*. When a gap sits in the capability the project exists to deliver,
+"the bar is technically met" is the wrong argument for shipping without
+it — and it is a seductive one, because it is true.
+
+Learned on the MCP connector: the endpoint was authenticated, so the
+"all endpoints secured" gate passed, and descoping looked defensible.
+But conversational analysis was the entire premise; the dashboard was
+the secondary surface. Shipping to the letter of the checklist would
+have shipped the wrong product.
+
+Ask what the project is for before deciding what can be dropped.
+
+## 12. Give tools the context you'd give a person
+
+An assistant reasons confidently from whatever fields you hand it, and
+omitted context does not read as absent — it reads as *not applicable*.
+A lap time with no driver attached, in a list called "my sessions", is
+not ambiguous to a model. It is a personal best.
+
+So the payload a tool returns is a primary interface, not a by-product
+of whatever the UI happened to need. When you add a qualifier to a
+screen because the screen would otherwise mislead, check every other
+consumer of that data for the same reason.
+
+## 13. When an error has no trace, look before authentication
+
+The hardest failure to diagnose is the one that leaves no record.
+Identity providers reject malformed requests *before* authenticating
+anyone, which means no sign-in log is written at all — and an empty log
+filtered by the application looks exactly like a credentials problem.
+That misreading cost most of a day.
+
+When the logs are empty on both sides, stop assuming and drive the
+protocol endpoint directly, changing one parameter at a time. A
+30-second `curl` against an authorize endpoint answered what hours of
+UI round-trips could not.
+
+## 14. Scope decisions are features
 
 Writing down what the project is deliberately **not** is worth as
 much as the roadmap. It stops the same idea resurfacing every few
