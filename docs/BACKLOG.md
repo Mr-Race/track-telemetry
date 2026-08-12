@@ -257,19 +257,6 @@ blocks 1.0.
       double-correct. (RaceChrono's gauge and the car's dash both show
       100% at full pedal; that's UI normalization, not the raw signal.
       The CSV ceiling of 94.90 is the real one.)
-- [ ] **Remaining archive: the TNIA CSVs** (smaller remnant of the
-      backfill, completed 2026-08-12 — see Done). Sessions 6, 9 and 10
-      plus the instructor session 13 were phone-uploaded and their
-      source CSVs are not in `data/`, so they have no `source_sha256`
-      and no segment times — which is why they are the only sessions
-      still showing no optimal lap. If those files still exist on the
-      phone, dropping them in and re-running the backfill closes both
-      gaps. If they don't, that's an acceptable permanent hole and this
-      item should be closed as won't-fix rather than left open.
-      Note the ingest path still has no way to flag a driver, so any
-      instructor or shared-seat session in a future archive would land
-      as AC's by default (issue #2's failure mode). A `--driver` flag is
-      probably enough, and is only needed if such a session turns up.
 - [ ] **Docs baseline (living documentation v1)** — technical +
       business doc sets as docs-as-code in the repo
       (docs/technical/, docs/business/), updated in the same commits
@@ -435,6 +422,32 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-12 — **Archive fully reconciled — every session now has
+      segment times, an optimal lap, and a content hash. Zero gaps.**
+      Final state: 15 sessions, 127 laps, 1520 segment times, 1393
+      corner metrics, 15/15 hashed.
+      The four remaining sessions (TNIA 6/9/10 and the instructor
+      session 13) were about to be written off as a permanent hole,
+      because their CSVs were not in `data/`. **AC pointed out they had
+      been uploaded through the Shortcut, which means the raw files were
+      archived to Blob — the exact thing the raw-data-is-sacred
+      principle exists for.** They were all there, recoverable by
+      matching `sessions.source_file` against the blob names. Recovered,
+      hash-matched to their existing rows, and refreshed in place.
+      Worth recording that the principle paid out in a way nobody
+      planned: the archive was justified as protecting against bad
+      transforms, and what it actually did was let a session be
+      reconstructed months later when the local copy was gone.
+      Note the blobs sit under a `1/` prefix regardless of the event
+      they now belong to — the prefix is the `event_id` *at upload
+      time*, and TNIA's sessions originally resolved to event 1. Match
+      on the filename suffix, not the prefix.
+      The duplication trap was avoided the same way as before: these had
+      no `source_sha256`, so the idempotency lookup was blind to them
+      and a naive backfill would have inserted four duplicates.
+      Fingerprinted each file against stored lap-time sequences first,
+      recorded the hashes, then refreshed. Every session in the DB now
+      carries the key, so the trap is closed for good.
 - [x] 2026-08-12 — **Historical backfill complete.** 11 archived
       RaceChrono CSVs reconciled into the DB: 8 new sessions loaded, 3
       refreshed in place. The database went from 7 sessions / 71 laps /
