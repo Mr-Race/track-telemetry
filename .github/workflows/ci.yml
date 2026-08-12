@@ -71,6 +71,13 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Unit tests
+        # The dashboard is the one surface where a bug is total and
+        # silent - a broken bundle takes the whole app down and lint,
+        # typecheck and build all pass regardless. That is exactly what
+        # happened with the MSAL active-account bug on 2026-08-10.
+        run: npm test
+
       - name: Typecheck and build
         # `npm run build` is `tsc -b && vite build`, so this covers the
         # typecheck too - and with "strict": true it is a real check.
