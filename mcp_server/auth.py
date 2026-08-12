@@ -32,6 +32,20 @@ JWKS_URI = (f"https://{TENANT_ID}.ciamlogin.com/{TENANT_ID}"
 
 REQUIRED_SCOPE = "mcp.access"
 
+# The app registration's Application ID URI. Entra ties a scope to the
+# resource that owns it, and MCP clients send the *server's own URL* as
+# the RFC 8707 `resource`. Entra rejects the request outright when those
+# two disagree - before authenticating anyone, which is why it produced
+# no sign-in log at all and was so hard to pin down.
+#
+# They can only agree when the Application ID URI *is* the server URL,
+# and Entra only accepts an https App ID URI on a verified domain - so
+# `*.azurecontainerapps.io` could never work. Hence mcp.mr-race.com.
+#
+# Configurable so the portal change and the deploy don't have to be
+# simultaneous; defaults to the old api:// form.
+APP_ID_URI = os.environ.get("MCP_APP_ID_URI", f"api://{CLIENT_ID}").rstrip("/")
+
 # The fully-qualified scope an OAuth client must REQUEST from Entra
 # (api://<client-id>/mcp.access). This is what we advertise in the
 # protected-resource metadata's scopes_supported, because Entra only
@@ -40,13 +54,24 @@ REQUIRED_SCOPE = "mcp.access"
 # client's token acquisition. Note the *issued* token's `scp` claim still
 # carries only the short name "mcp.access" (REQUIRED_SCOPE), so that's
 # what verify_token checks against below.
-QUALIFIED_SCOPE = f"api://{CLIENT_ID}/{REQUIRED_SCOPE}"
+QUALIFIED_SCOPE = f"{APP_ID_URI}/{REQUIRED_SCOPE}"
 
 # Entra issues a custom-API access token with `aud` set to either the
 # app's client id (GUID) or its App ID URI (api://<client-id>), depending
 # on the registration's requested-token-version. Accept both so this
 # verifier does not silently break if that setting is ever changed.
-_AUDIENCES = [CLIENT_ID, f"api://{CLIENT_ID}"]
+# Accept every form the token's `aud` can legitimately take: the bare
+# client id, the old api:// URI, and the configured App ID URI with and
+# without a trailing slash - Entra is inconsistent about normalising it,
+# and a mismatch on a slash would look identical to a real auth failure.
+# Listing them all avoids a flag-day cutover between the portal change
+# and this deploy.
+_AUDIENCES = list(dict.fromkeys([
+    CLIENT_ID,
+    f"api://{CLIENT_ID}",
+    APP_ID_URI,
+    f"{APP_ID_URI}/",
+]))
 
 _jwks_client = jwt.PyJWKClient(JWKS_URI)
 
