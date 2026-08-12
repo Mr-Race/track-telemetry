@@ -240,21 +240,19 @@ blocks 1.0.
       double-correct. (RaceChrono's gauge and the car's dash both show
       100% at full pedal; that's UI normalization, not the raw signal.
       The CSV ceiling of 94.90 is the real one.)
-- [ ] **Backfill historical sessions** — the refresh-in-place
-      `--backfill` CLI mode exists now (see Done, 2026-08-03) and has
-      been run against the two historical CSVs already in `data/`
-      (sessions 1 and 2). Remaining: more pre-automation RaceChrono
-      CSVs exist outside this devcontainer (phone/laptop) and still
-      need to land in `data/` before `--backfill` can be run against
-      them too.
-      **Decide how a driver gets flagged at ingest before this runs**
-      (from issue #2, closed 2026-08-11). Any other instructor-driven
-      or shared-seat session in the archive needs the same attribution
-      session 13 just got, and the CSV metadata cannot say who drove —
-      `driver_id` simply defaults to 1. Backfilling first and
-      reattributing afterwards means every personal-best query is wrong
-      in between, which is precisely how issue #2 went unnoticed for
-      weeks. A `--driver` flag on the CLI is probably enough.
+- [ ] **Remaining archive: the TNIA CSVs** (smaller remnant of the
+      backfill, completed 2026-08-12 — see Done). Sessions 6, 9 and 10
+      plus the instructor session 13 were phone-uploaded and their
+      source CSVs are not in `data/`, so they have no `source_sha256`
+      and no segment times — which is why they are the only sessions
+      still showing no optimal lap. If those files still exist on the
+      phone, dropping them in and re-running the backfill closes both
+      gaps. If they don't, that's an acceptable permanent hole and this
+      item should be closed as won't-fix rather than left open.
+      Note the ingest path still has no way to flag a driver, so any
+      instructor or shared-seat session in a future archive would land
+      as AC's by default (issue #2's failure mode). A `--driver` flag is
+      probably enough, and is only needed if such a session turns up.
 - [ ] **Docs baseline (living documentation v1)** — technical +
       business doc sets as docs-as-code in the repo
       (docs/technical/, docs/business/), updated in the same commits
@@ -420,6 +418,45 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-12 — **Historical backfill complete.** 11 archived
+      RaceChrono CSVs reconciled into the DB: 8 new sessions loaded, 3
+      refreshed in place. The database went from 7 sessions / 71 laps /
+      189 segment times to **15 / 127 / 1014**.
+      Every file parsed clean — zero malformed rows, zero GPS dropouts —
+      which is the first real-world evidence for the skipped-row
+      diagnostics added on 2026-08-10.
+      **The idempotency check earned its keep, and exposed its own
+      blind spot.** Three files matched sessions already loaded and were
+      refreshed rather than duplicated. But a fourth
+      (`session_20260517_154734`) *was* already in the DB as session 5,
+      loaded by phone upload before `source_sha256` existed — so the
+      hash lookup was blind to it and it would have duplicated. Caught
+      by fingerprinting each CSV against stored lap-time sequences
+      before writing anything, and fixed by backfilling that session's
+      hash first. **A uniqueness check only protects rows that carry the
+      key**; the five phone-uploaded sessions never had one. 11 of 15
+      sessions are now protected — the remaining four are the TNIA
+      sessions whose CSVs are still not in `data/`.
+      Two schema/data consequences, both decided with AC:
+      `sql/21` extends `Thunderbolt June 2026` to end 2026-06-14 (it was
+      a two-day weekend; `resolve_event_id` matches a date against
+      `start_date..ISNULL(end_date, start_date)`, so a null end_date is
+      a single-day window and the three 14 June sessions could not
+      resolve). And all 8 were confirmed AC's own, so none needed the
+      instructor attribution that bit us in issue #2.
+      All three events renumbered chronologically afterwards, since new
+      sessions take the next free number rather than slotting into time
+      order — event 1 needed 5 of 6 rows moved.
+      **Personal bests moved for real:** Thunderbolt is now 1:47.098
+      (was 1:49.558). Lightning stays 1:24.975 — the recovered May
+      sessions were all slower, which is itself the progression story
+      the platform exists to show.
+      **Optimal laps now populate for 12 of 15 sessions.** The three
+      TNIA ones and the instructor session still show none: they predate
+      `sql/16` segment times and their CSVs are not in `data/`.
+      Note for the `accelerator_pos` item: **all 11 files use
+      `throttle_pos`**. None carry the new channel, so that item is
+      still blocked on the 2026-08-10 export.
 - [x] 2026-08-12 — **OAuth 2.1 on the MCP server WORKS END TO END.**
       The Claude connector authorizes, and conversational queries
       against real session data return correct results. This was the
