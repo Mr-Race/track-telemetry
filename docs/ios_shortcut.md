@@ -66,6 +66,29 @@ whole shortcut is three actions:
      `session_number`, and `track` fields in the result to confirm it
      matched the session you meant to upload.
 
+### What to check in the result, at the track
+
+The response carries a `parse` block precisely so a bad upload is
+obvious while you can still do something about it, rather than turning
+up weeks later as NULLs in the data:
+
+- **`parse.pedal_channel`** — which OBD pedal channel was read.
+  Since the logger was reconfigured to PID 0x49 this should read
+  **`accelerator_pos`**. If it says `throttle_pos`, RaceChrono is still
+  on the old channel config. If it's `null`, no pedal data was captured
+  at all — usually the OBD dongle not paired.
+- **`parse.has_rpm`** — `false` also points at the dongle.
+- **`parse.rows_skipped`** — `malformed` and `missing_gps` should both
+  be `0`. A non-zero `malformed` means a truncated or corrupt export;
+  re-export before leaving the paddock. (`no_lap` is normal and often
+  large — those are the pre-first-crossing and pit samples.)
+- **`duplicate`** — `true` means this exact file was already ingested
+  and the existing session was refreshed rather than a second one
+  created. Safe, and expected if you upload twice.
+
+A session with no OBD data still ingests fine — laps, corner metrics
+and segment times all come from GPS.
+
 ## How auto-resolution works
 
 - **Event**: matched from the CSV's `Track name` + `Created` date

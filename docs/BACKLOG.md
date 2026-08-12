@@ -182,9 +182,26 @@ blocks 1.0.
       being found by eye. Note `overflow-x: hidden` on `body` is NOT
       the fix — it hides the symptom and silently clips content.
 - [ ] **Parser must accept the `accelerator_pos` OBD channel**
-      (GitHub issue #8, raised 2026-08-10 — tracked there in full,
-      summarized here because it gates the backfill item below).
-      **PARTLY LANDED 2026-08-10 (not deployed).** Done: name
+      (GitHub issue #8, raised 2026-08-10 — tracked there in full).
+      **TIME-BLOCKED, not effort-blocked (AC, 2026-08-12): the first
+      files carrying this channel will not exist until the next Sunday
+      event**, since the logger was only reconfigured after the last one.
+      No archived CSV has it — all 11 backfilled files use
+      `throttle_pos` — so the fixture cannot stop being synthetic before
+      then.
+      Consequence worth planning for: **Sunday is the first time the new
+      parser path runs for real, in production, from the phone at a
+      track.** Two things reduce the blast radius, both already in
+      place: the ingest response reports `parse.pedal_channel` so the
+      channel actually read is visible in the Shortcut popup at upload
+      time (see `docs/ios_shortcut.md`, "What to check in the result"),
+      and a session with no OBD data still ingests cleanly as a
+      GPS-only session.
+      **Before Sunday:** create the event on the dashboard's Events
+      page. Auto-resolution matches the CSV's track + date against an
+      existing event and 400s if there isn't one — that failure happens
+      in the paddock, not here.
+      **PARTLY LANDED 2026-08-10, deployed 2026-08-11.** Done: name
       resolution in `parse_csv` (accepts either channel, prefers
       `accelerator_pos`); OBD channels and skipped-row counts now
       reported in the ingest response and logged; `parse_csv` returns a
