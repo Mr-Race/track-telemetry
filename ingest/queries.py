@@ -43,10 +43,17 @@ def list_sessions(cnx, event_id=None):
                s.session_number, s.session_date, rg.group_code,
                s.weather, s.air_temp_f,
                lap_agg.best_lap_ms, lap_agg.avg_valid_lap_ms, c.display_name,
-               opt_agg.optimal_lap_ms
+               opt_agg.optimal_lap_ms, d.display_name AS driver
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
+        -- Without this, every consumer sees a lap time with no idea who
+        -- drove it. The MCP tools are the primary interface, and an
+        -- assistant reading an instructor's 1:21.837 in a list of "my"
+        -- sessions will report it as a personal best - which is exactly
+        -- what happened on 2026-08-12, after the attribution itself had
+        -- already been fixed. See GitHub issue #2.
+        JOIN dbo.drivers d ON d.driver_id = s.driver_id
         LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
         LEFT JOIN dbo.cars c ON c.car_id = s.car_id
         OUTER APPLY (
@@ -91,6 +98,8 @@ def list_sessions(cnx, event_id=None):
             "car": r[11],
             "optimal_lap_ms": r[12],
             "optimal_lap": fmt_ms(r[12]) if r[12] is not None else None,
+            # Who actually drove it. Not every session is the owner's.
+            "driver": r[13],
         }
         for r in cur.fetchall()
     ]
@@ -102,10 +111,11 @@ def get_session_detail(cnx, session_id):
         SELECT s.session_id, s.event_id, e.event_name, t.track_id,
                t.track_name, s.session_number, s.session_date,
                rg.group_code, s.weather, s.air_temp_f, s.source_file,
-               c.display_name, s.car_id
+               c.display_name, s.car_id, d.display_name AS driver
         FROM dbo.sessions s
         JOIN dbo.events e ON e.event_id = s.event_id
         JOIN dbo.tracks t ON t.track_id = e.track_id
+        JOIN dbo.drivers d ON d.driver_id = s.driver_id
         LEFT JOIN dbo.run_groups rg ON rg.run_group_id = s.run_group_id
         LEFT JOIN dbo.cars c ON c.car_id = s.car_id
         WHERE s.session_id = ?""", session_id)
@@ -122,6 +132,7 @@ def get_session_detail(cnx, session_id):
         "source_file": row[10],
         "car": row[11],
         "car_id": row[12],
+        "driver": row[13],
     }
 
     cur.execute("""
