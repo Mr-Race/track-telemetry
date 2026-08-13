@@ -474,12 +474,14 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             session_id = refresh(
                 cnx, existing_id, event_id, meta, samples, laps, metrics,
                 car_id=car_id, segments=segments,
-                source_sha256=source_sha256)
+                source_sha256=source_sha256,
+                pedal_channel=parse_diag["pedal_channel"])
         else:
             session_id = load(cnx, event_id, session_number, filename,
                                meta, samples, laps, metrics, car_id=car_id,
                                segments=segments,
-                               source_sha256=source_sha256)
+                               source_sha256=source_sha256,
+                               pedal_channel=parse_diag["pedal_channel"])
         summary["loaded"] = True
         summary["session_id"] = session_id
         summary["corner_metric_count"] = len(metrics)

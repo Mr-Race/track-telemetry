@@ -600,7 +600,8 @@ def _insert_children(cur, session_id, laps, metrics, segments):
 
 
 def load(cnx, event_id, session_number, source_filename, meta, samples,
-         laps, metrics, car_id=None, segments=None, source_sha256=None):
+         laps, metrics, car_id=None, segments=None, source_sha256=None,
+         pedal_channel=None):
     session_date = parse_session_date(meta)
     # Weather is keyed on the absolute instant, so it takes the UTC
     # value; the column stores local track time.
@@ -613,13 +614,14 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
         INSERT INTO dbo.sessions
             (event_id, session_number, session_date, start_time,
              source_file, car_id, weather, air_temp_f, humidity_pct,
-             wind_mph, precip_in, weather_observed_at, source_sha256)
+             wind_mph, precip_in, weather_observed_at, source_sha256,
+             pedal_channel)
         OUTPUT INSERTED.session_id
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         event_id, session_number, session_date, start_time,
         source_filename, car_id, w["weather"], w["air_temp_f"],
         w["humidity_pct"], w["wind_mph"], w["precip_in"],
-        w["weather_observed_at"], source_sha256)
+        w["weather_observed_at"], source_sha256, pedal_channel)
     session_id = cur.fetchone()[0]
 
     _insert_children(cur, session_id, laps, metrics, segments)
@@ -628,7 +630,8 @@ def load(cnx, event_id, session_number, source_filename, meta, samples,
 
 
 def refresh(cnx, session_id, event_id, meta, samples, laps, metrics,
-            car_id=None, segments=None, source_sha256=None):
+            car_id=None, segments=None, source_sha256=None,
+            pedal_channel=None):
     """Re-ingest an already-loaded session in place: replace its laps/
     corner_metrics/segment_times and (re)fetch weather, without touching
     session_id/session_number/source_file. For historical CSVs loaded
@@ -637,7 +640,14 @@ def refresh(cnx, session_id, event_id, meta, samples, laps, metrics,
     passed - a None here means "leave whatever's already set", so a
     later re-run doesn't clobber a car_id set via the dashboard's PATCH
     endpoint. A failed weather refetch (returns weather.EMPTY) likewise
-    leaves any previously-fetched weather alone rather than blanking it."""
+    leaves any previously-fetched weather alone rather than blanking it.
+
+    `pedal_channel` is set outright rather than COALESCEd, unlike car_id
+    and the hash. Those two can be set from elsewhere (the dashboard's
+    PATCH, the HTTP path) so a CLI refresh must not clobber them.
+    `pedal_channel` is derived from nothing but the file being re-parsed,
+    so the file is authoritative - including when it says None, which is
+    the truthful answer for a session recorded with no OBD dongle."""
     from ingest import weather
 
     session_date = parse_session_date(meta)
@@ -665,18 +675,21 @@ def refresh(cnx, session_id, event_id, meta, samples, laps, metrics,
             SET session_date = ?, start_time = ?, car_id = COALESCE(?, car_id),
                 weather = ?, air_temp_f = ?, humidity_pct = ?,
                 wind_mph = ?, precip_in = ?, weather_observed_at = ?,
-                source_sha256 = COALESCE(?, source_sha256)
+                source_sha256 = COALESCE(?, source_sha256),
+                pedal_channel = ?
             WHERE session_id = ?""",
             session_date, start_time, car_id, w["weather"], w["air_temp_f"],
             w["humidity_pct"], w["wind_mph"], w["precip_in"],
-            w["weather_observed_at"], source_sha256, session_id)
+            w["weather_observed_at"], source_sha256, pedal_channel, session_id)
     else:
         cur.execute("""
             UPDATE dbo.sessions
             SET session_date = ?, start_time = ?, car_id = COALESCE(?, car_id),
-                source_sha256 = COALESCE(?, source_sha256)
+                source_sha256 = COALESCE(?, source_sha256),
+                pedal_channel = ?
             WHERE session_id = ?""",
-            session_date, start_time, car_id, source_sha256, session_id)
+            session_date, start_time, car_id, source_sha256, pedal_channel,
+            session_id)
 
     _insert_children(cur, session_id, laps, metrics, segments)
     cnx.commit()
@@ -771,7 +784,8 @@ def main():
         existing_id = find_existing_session(cnx, event_id, source_filename)
         if existing_id is not None:
             sid = refresh(cnx, existing_id, event_id, meta, samples, laps,
-                          metrics, car_id=args.car_id, segments=segments)
+                          metrics, car_id=args.car_id, segments=segments,
+                          pedal_channel=diag["pedal_channel"])
             print(f"\nRefreshed existing session_id {sid} (event "
                   f"{event_id}): {len(laps)} laps, {len(metrics)} corner "
                   f"metrics, {len(segments)} segments.")
@@ -779,7 +793,8 @@ def main():
             session_number = next_session_number(cnx, event_id)
             sid = load(cnx, event_id, session_number, source_filename, meta,
                       samples, laps, metrics, car_id=args.car_id,
-                      segments=segments)
+                      segments=segments,
+                      pedal_channel=diag["pedal_channel"])
             print(f"\nLoaded as new session_id {sid} (event {event_id}, "
                   f"session_number {session_number}): {len(laps)} laps, "
                   f"{len(metrics)} corner metrics, {len(segments)} "
@@ -789,7 +804,8 @@ def main():
             sys.exit("--load requires --server/--database/--event-id")
         sid = load(cnx, event_id, args.session_number,
                    args.csv.split("/")[-1], meta, samples, laps, metrics,
-                   car_id=args.car_id, segments=segments)
+                   car_id=args.car_id, segments=segments,
+                   pedal_channel=diag["pedal_channel"])
         print(f"\nLoaded as session_id {sid}: {len(laps)} laps, "
               f"{len(metrics)} corner metrics, {len(segments)} segments.")
     else:
