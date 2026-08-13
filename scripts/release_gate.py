@@ -245,6 +245,38 @@ def check_ci_green():
                  "A tag pointing at a red commit is worse than no tag.")
 
 
+def check_no_dangling_dns():
+    """No subdomain points at something deprovisioned.
+
+    In the gate because a release is a moment when someone is paying
+    attention. It is deliberately *not* a scheduled public workflow: on a
+    public repo the run log would publish the exact hostname an attacker
+    needs to claim. See scripts/dns_audit.py."""
+    r = subprocess.run([sys.executable,
+                        os.path.join(REPO_ROOT, "scripts", "dns_audit.py"),
+                        "--json"],
+                       capture_output=True, text=True, cwd=REPO_ROOT)
+    if r.returncode == 2:
+        return Check("No dangling DNS records", False,
+                     "could not run the audit (dig unavailable?)",
+                     "Run scripts/dns_audit.py by hand.")
+    try:
+        dangling = json.loads(r.stdout).get("dangling", [])
+    except json.JSONDecodeError:
+        return Check("No dangling DNS records", False,
+                     "audit produced no parseable output", None)
+    if dangling:
+        return Check(
+            "No dangling DNS records", False,
+            f"{len(dangling)} subdomain(s) point at a host that does not "
+            f"resolve: {', '.join(d['name'] for d in dangling)}",
+            "Subdomain takeover risk. Remove or repoint the record. Keep "
+            "the target name out of issues and commit messages - see "
+            "SECURITY.md.")
+    return Check("No dangling DNS records", True,
+                 "every CNAME resolves to a live target")
+
+
 def check_v1_scope_closed():
     path = os.path.join(REPO_ROOT, "docs", "BACKLOG.md")
     with open(path) as fh:
@@ -265,7 +297,7 @@ def check_v1_scope_closed():
 
 def run_all():
     checks = [check_tree_clean(), check_v1_scope_closed(), check_tests(),
-              check_ci_green()]
+              check_ci_green(), check_no_dangling_dns()]
     try:
         cnx = _connect()
         checks += [check_real_session(cnx), check_session_quality(cnx),

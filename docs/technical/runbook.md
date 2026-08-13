@@ -126,6 +126,31 @@ Several `az` command modules fail to load on the CLI version in this
 devcontainer (`monitor`, `rdbms`, and `az sql db pause`). `az rest`
 against the management API is the workaround.
 
+## DNS hygiene
+
+```bash
+python scripts/dns_audit.py          # exit 0 = clean, 1 = something dangles
+```
+
+Checks every CNAME in the zone for a target that no longer resolves. A
+dangling record is a subdomain takeover risk: cloud endpoint names are
+globally unique and claimable, so whoever registers the missing name
+serves content on our subdomain, under a valid certificate.
+
+**Dangling records are created by deleting cloud resources, not by
+editing DNS.** Run this whenever an Azure resource with a custom domain
+is decommissioned — that is the moment one appears, and the moment
+nobody is looking at DNS.
+
+It also runs as part of `release_gate.py`.
+
+!!! warning "Not a scheduled workflow, on purpose"
+    The obvious move is a nightly GitHub Action. On a **public** repo the
+    run log would publish the exact hostname an attacker needs to claim —
+    continuously, while the window is open. A finding here is a
+    disclosure. Run it locally; findings go in `.local/`, per
+    `SECURITY.md`.
+
 ## Cut a release
 
 See [RELEASING.md](../RELEASING.md).
