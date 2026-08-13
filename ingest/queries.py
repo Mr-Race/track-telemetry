@@ -7,6 +7,7 @@ the same SQL.
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from . import pedal
 from .racechrono_parser import DEFAULT_TRACK_TZ, fmt_ms
 
 # Whose laps count as "personal" bests. Single-user today, so this is a
@@ -164,12 +165,23 @@ def get_session_detail(cnx, session_id):
 
 
 def get_corner_metrics(cnx, session_id, lap_number=None):
+    """Corner metrics for a session.
+
+    Pedal position is returned twice on purpose. `pedal_pct_raw` is what
+    the channel reported and what is stored; `pedal_pct` is
+    percent-of-travel, normalised on read from the calibration for this
+    session's (car, channel). `pedal_pct` is None when the session has
+    no OBD data or when nobody has measured that channel - visibly
+    uncalibrated beats quietly rescaled. See `ingest/pedal.py`.
+    """
     cur = cnx.cursor()
     sql = """
         SELECT l.lap_number, c.corner_code, c.corner_name,
-               cm.min_speed_mph, cm.entry_speed_mph, cm.exit_speed_mph
+               cm.min_speed_mph, cm.entry_speed_mph, cm.exit_speed_mph,
+               cm.throttle_pos_apex_pct, s.car_id, s.pedal_channel
         FROM dbo.corner_metrics cm
         JOIN dbo.laps l ON l.lap_id = cm.lap_id
+        JOIN dbo.sessions s ON s.session_id = l.session_id
         JOIN dbo.corners c ON c.corner_id = cm.corner_id
         WHERE l.session_id = ?
     """
@@ -178,16 +190,23 @@ def get_corner_metrics(cnx, session_id, lap_number=None):
         sql += " AND l.lap_number = ?"
         params.append(lap_number)
     cur.execute(sql + " ORDER BY l.lap_number, c.sort_order", *params)
+    rows = cur.fetchall()
 
-    return [
-        {
+    calibrations = pedal.calibration_map(cur)
+
+    out = []
+    for r in rows:
+        rest_full = calibrations.get((r[7], r[8]), (None, None))
+        out.append({
             "lap_number": r[0], "corner_code": r[1], "corner_name": r[2],
             "min_speed_mph": float(r[3]),
             "entry_speed_mph": float(r[4]) if r[4] is not None else None,
             "exit_speed_mph": float(r[5]) if r[5] is not None else None,
-        }
-        for r in cur.fetchall()
-    ]
+            "pedal_pct_raw": float(r[6]) if r[6] is not None else None,
+            "pedal_pct": pedal.normalize_pedal_pct(r[6], *rest_full),
+            "pedal_channel": r[8],
+        })
+    return out
 
 
 def fastest_valid_lap(cur, session_id):

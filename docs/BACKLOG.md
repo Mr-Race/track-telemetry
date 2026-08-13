@@ -151,7 +151,7 @@ The cut line: completes the analysis story (every session ever
 driven, ingested and enriched, with optimal laps, fully secured)
 plus the docs baseline and the two pre-launch reviews. Nothing else
 blocks 1.0.
-- [ ] **Parser must accept the `accelerator_pos` OBD channel**
+- [x] **Parser must accept the `accelerator_pos` OBD channel** — DONE 2026-08-13
       (GitHub issue #8, raised 2026-08-10 — tracked there in full).
       **TIME-BLOCKED, not effort-blocked (AC, 2026-08-12): the first
       files carrying this channel will not exist until the next Sunday
@@ -440,6 +440,35 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-13 — **Pedal calibration: the second half of issue #8.**
+      Raw OBD pedal values carry a sensor voltage baseline, so the pedal
+      at rest read 18.82% and at the stop 94.90%. A corner taken with
+      the foot completely off the pedal reported 18.8% throttle — a
+      wrong answer, not a rounding difference.
+      New `dbo.pedal_calibration` keyed on **(car_id, channel)**, not car
+      alone: throttle plate and true pedal position are different signals
+      with different endpoints, and the archive holds both. A table
+      rather than nullable columns on `dbo.cars`, since the relationship
+      is genuinely one car to many channels.
+      Normalisation happens **on read** (`ingest/pedal.py`), never at
+      ingest, so a future PID or sensor change cannot make history
+      double-correct. `get_corner_metrics` now returns `pedal_pct_raw`
+      alongside the normalised `pedal_pct`.
+      **No row seeded for `throttle_pos`.** Nobody has measured that
+      channel on this car, and inventing plausible constants would
+      silently rescale the whole archive. Those sessions return
+      `pedal_pct: null` — visibly uncalibrated beats quietly wrong.
+      Verified against production rather than fixtures alone: a real
+      `accelerator_pos` session normalised correctly (raw 45.9 -> 35.59,
+      hand-checked against the formula), a real historical
+      `throttle_pos` session returned null as designed, and the CHECK
+      constraint rejected an inverted calibration when tested directly.
+      The verification session and its blob were removed afterwards —
+      15 sessions, no orphans, 22 blobs.
+      Caveat worth recording: the positive-path file was a real export
+      with its pedal column relabelled, so the *mechanism* is verified
+      end to end but the *values* are throttle-plate numbers read as
+      pedal. A genuine `accelerator_pos` export still hasn't run through.
 - [x] 2026-08-13 — **Docs baseline (living documentation v1).**
       `docs/technical/` now carries architecture (with the session flow
       and where the sharp edges are), a schema/data dictionary,
