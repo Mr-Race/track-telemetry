@@ -182,7 +182,31 @@ blocks 1.0.
       normalization happens on read, not at ingest; (b) the
       `accelerator_pos` test fixture is synthetic, so it verifies the
       resolution logic but not the real file's exact shape — needs
-      `session_20260810_071257_v3.csv` off the phone. **Deployed
+      `session_20260810_071257_v3.csv` off the phone.
+      **Update 2026-08-13.** (b) is now most of the way closed: AC
+      supplied the file's exact header layout, and a faithful replica
+      built from it parses correctly — `accelerator_pos` at index 19,
+      the dongle warm-up producing 20 null pedal samples, CRLF, and GPS
+      speed binding *proven* rather than assumed by setting the two
+      decoy `speed` columns to 0.5x and 2.0x. Still a replica, not the
+      file; the real bytes remain the thing that closes it.
+      (a) has not been started at all — `dbo.cars` has no calibration
+      columns and no normalization exists anywhere in the codebase, so
+      `throttle_pos_apex_pct` currently stores raw values where zero
+      pedal reads 18.82%.
+      **And (a) is under-specified as written.** Normalizing on read
+      requires knowing *which* channel produced each stored value —
+      throttle plate and pedal have different rest and full points —
+      and nothing records it. `dbo.sessions` has no such column and the
+      parser writes both channels into one key, so the archive is
+      silently mixed at the 2026-08-10 boundary. Needs a
+      `pedal_channel` column on `dbo.sessions` populated at ingest (the
+      parser already computes it and then discards it), with
+      calibration keyed on `(car, channel)`. Worth landing before more
+      sessions widen the ambiguous span.
+      Also corrected: this does **not** block the backfill, contrary to
+      the note below. Normalization is on read, so the archived raw
+      values stay correct and no re-ingest is needed. **Deployed
       2026-08-10** (rode along with the security-fix deploy, since
       `func publish` ships the whole app).
       `parse_csv` looks up only `throttle_pos` (source `200: obd`):
