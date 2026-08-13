@@ -3,7 +3,15 @@
 The free-tier database auto-pauses and takes 30-60s to resume. When
 every request opened its own connection, each concurrent call paid that
 separately - measured at 48.7s / 47.7s / 46.7s for three calls on one
-page load. These pin the behaviour that fixes it. See issue #16.
+page load (issue #16).
+
+The first fix went too far and shared ONE connection across the whole
+process. pytds connections are not thread-safe and allow a single active
+cursor, so overlapping requests corrupted the TDS stream in production
+on 2026-08-13 - every endpoint 500ing with `Invalid TDS marker` and
+`Cursor is closed`. Connections are now per-thread: the resume is still
+paid once per thread rather than once per request, but no wire is ever
+shared. These tests pin both halves.
 """
 
 import threading
@@ -44,8 +52,7 @@ class FakeConnection:
 @pytest.fixture(autouse=True)
 def reset_pool(monkeypatch):
     """Each test starts with an empty pool and a stubbed connect."""
-    monkeypatch.setattr(cloud, "_connection", None)
-    monkeypatch.setattr(cloud, "_connection_key", None)
+    monkeypatch.setattr(cloud, "_local", threading.local())
     opened = []
 
     def fake_open(server, database):
@@ -109,36 +116,62 @@ class TestStaleConnections:
 
 
 class TestConcurrency:
-    def test_concurrent_callers_share_a_single_connect(self, monkeypatch):
-        """Ten threads arriving during a slow resume must produce one
-        connect, not ten - that is the difference between waiting ~47s
-        once and ten calls each waiting ~47s."""
-        monkeypatch.setattr(cloud, "_connection", None)
-        monkeypatch.setattr(cloud, "_connection_key", None)
-        opened = []
+    """The 2026-08-13 outage.
 
-        def slow_open(server, database):
-            time.sleep(0.05)          # stand-in for the resume
-            conn = FakeConnection()
-            opened.append(conn)
-            return conn
+    One connection shared across the process meant overlapping requests
+    used one pytds connection, which allows a single active cursor and is
+    not thread-safe. Opening a cursor cancelled another request's
+    in-flight cursor and desynchronised the TDS stream: every endpoint
+    500ing with `Invalid TDS marker: 4(4)` and `Cursor is closed`.
+    """
 
-        monkeypatch.setattr(cloud, "_open_connection", slow_open)
+    def test_each_thread_gets_its_own_connection(self, reset_pool):
+        """The invariant that replaced 'one connection per process'. Two
+        threads must never be handed the same wire."""
+        seen = {}
+        barrier = threading.Barrier(4)
 
+        def worker(i):
+            barrier.wait()          # maximise overlap
+            seen[i] = cloud.get_cloud_connection("srv", "db")
+
+        threads = [threading.Thread(target=worker, args=(i,))
+                   for i in range(4)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+
+        assert len(seen) == 4
+        assert len({id(c) for c in seen.values()}) == 4, \
+            "two threads received the same connection"
+
+    def test_a_thread_still_reuses_its_own_connection(self, reset_pool):
+        """Per-thread, not per-request: the point of issue #16 survives.
+        Otherwise every call would pay the serverless resume again."""
         results = []
-        threads = [
-            threading.Thread(
-                target=lambda: results.append(
-                    cloud.get_cloud_connection("srv", "db")))
-            for _ in range(10)
-        ]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
 
-        assert len(opened) == 1
-        assert all(r is opened[0] for r in results)
+        def worker():
+            a = cloud.get_cloud_connection("srv", "db")
+            b = cloud.get_cloud_connection("srv", "db")
+            results.append(a is b)
+
+        t = threading.Thread(target=worker)
+        t.start(); t.join()
+
+        assert results == [True]
+        assert len(reset_pool) == 1
+
+    def test_one_thread_does_not_see_anothers_connection(self, reset_pool):
+        """Thread-local really is local - a second thread must open its
+        own rather than inheriting whatever the first left behind."""
+        first = cloud.get_cloud_connection("srv", "db")
+        other = []
+
+        t = threading.Thread(
+            target=lambda: other.append(
+                cloud.get_cloud_connection("srv", "db")))
+        t.start(); t.join()
+
+        assert other[0] is not first
 
 
 class TestCredential:
@@ -167,8 +200,7 @@ class TestAutoPauseResume:
     out mid-resume must not end the request."""
 
     def test_retries_once_past_a_failed_resume(self, monkeypatch):
-        monkeypatch.setattr(cloud, "_connection", None)
-        monkeypatch.setattr(cloud, "_connection_key", None)
+        monkeypatch.setattr(cloud, "_local", threading.local())
         attempts = []
 
         def flaky_open(server, database):
@@ -187,8 +219,7 @@ class TestAutoPauseResume:
     def test_gives_up_after_the_configured_attempts(self, monkeypatch):
         """It retries, it doesn't loop - a genuinely unreachable database
         should surface rather than hold the request open."""
-        monkeypatch.setattr(cloud, "_connection", None)
-        monkeypatch.setattr(cloud, "_connection_key", None)
+        monkeypatch.setattr(cloud, "_local", threading.local())
         attempts = []
 
         def always_fails(server, database):
@@ -206,8 +237,7 @@ class TestAutoPauseResume:
             self, monkeypatch, caplog):
         """Connection errors can name the server and the principal. The
         type is enough to diagnose a resume timeout."""
-        monkeypatch.setattr(cloud, "_connection", None)
-        monkeypatch.setattr(cloud, "_connection_key", None)
+        monkeypatch.setattr(cloud, "_local", threading.local())
         secret = "sql-host=free-sql-server; user=super-secret-principal"
 
         def always_fails(server, database):

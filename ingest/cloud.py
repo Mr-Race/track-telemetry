@@ -133,8 +133,27 @@ class _QmarkConnection:
 _credential = None
 _credential_lock = threading.Lock()
 
-_connection = None
-_connection_key = None
+# One connection PER THREAD, not per process.
+#
+# pytds connections are not thread-safe and allow a single active cursor:
+# `connection.cursor()` cancels whatever cursor is already open on it. A
+# single process-wide connection therefore breaks as soon as two requests
+# overlap - which is every dashboard page load, since it fetches
+# sessions, detail, summary and consumables in parallel. The symptom is
+# not a clean error but a corrupted TDS stream:
+#
+#     InterfaceError: Invalid TDS marker: 4(4)
+#     InterfaceError: Cursor is closed
+#
+# The liveness probe made it worse: `_is_alive()` runs `SELECT 1` on the
+# shared connection while another thread may be mid-query, which is
+# itself enough to desynchronise the stream.
+#
+# Thread-local keeps what issue #16 was actually for. That fix was about
+# not paying the serverless resume *per request*; a handful of worker
+# threads pay it once each and every request after is fast. What it must
+# not do is share one wire between threads.
+_local = threading.local()
 _connection_lock = threading.Lock()
 
 
@@ -204,7 +223,7 @@ def _is_alive(cnx):
 
 
 def get_cloud_connection(server, database):
-    """A shared connection for the process, opened on first use.
+    """A connection for the calling thread, opened on first use.
 
     Previously every request built its own credential and its own
     connection. On the free-tier serverless database that was the
@@ -222,23 +241,32 @@ def get_cloud_connection(server, database):
 
     See GitHub issue #16.
     """
-    global _connection, _connection_key
     key = (server, database)
+    cnx = getattr(_local, "connection", None)
 
+    # No lock around the probe or the reuse: this connection belongs to
+    # this thread, so nothing else can be using it. Taking a global lock
+    # here is what serialised - and corrupted - concurrent requests.
+    if cnx is not None:
+        if getattr(_local, "key", None) == key and _is_alive(cnx):
+            return cnx
+        # Either the target moved or the connection died. Close it either
+        # way - dropping the reference without closing leaks the socket
+        # until the process ends.
+        try:
+            cnx.close()
+        except Exception:
+            logging.debug("discarding an unusable connection", exc_info=True)
+        _local.connection = None
+
+    # Hold the lock only across the *connect*. Concurrent first-callers
+    # would otherwise each trigger their own serverless resume; this way
+    # they queue behind one and the rest return quickly.
     with _connection_lock:
-        if _connection is not None and _connection_key == key and _is_alive(_connection):
-            return _connection
-
-        if _connection is not None:
-            try:
-                _connection.close()
-            except Exception:
-                logging.debug("discarding a dead pooled connection",
-                              exc_info=True)
-
-        _connection = _connect_with_resume(server, database)
-        _connection_key = key
-        return _connection
+        cnx = _connect_with_resume(server, database)
+    _local.connection = cnx
+    _local.key = key
+    return cnx
 
 
 def upload_raw_blob(account_url, container, blob_name, data):
