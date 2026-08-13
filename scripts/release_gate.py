@@ -50,11 +50,41 @@ class Check:
         self.name, self.ok, self.detail, self.fix = name, ok, detail, fix
 
 
+SETTINGS = os.path.join(REPO_ROOT, "local.settings.json")
+
+
 def _connect():
+    """Open the production connection, or raise with an actionable reason.
+
+    The three ways this fails look identical from a stack trace and need
+    completely different responses, so they are separated here. An
+    earlier version reported a missing config file as "the database may
+    be resuming - retry in a minute", which is advice that can never
+    work."""
+    if not os.path.exists(SETTINGS):
+        raise RuntimeError(
+            "local.settings.json is missing. It is gitignored, so a fresh "
+            "Codespace does not have it.|"
+            "cp local.settings.json.example local.settings.json, then fill "
+            "in SQL_SERVER and SQL_DATABASE.")
     from ingest.cloud import get_cloud_connection
-    with open(os.path.join(REPO_ROOT, "local.settings.json")) as fh:
+    with open(SETTINGS) as fh:
         v = json.load(fh)["Values"]
-    return get_cloud_connection(v["SQL_SERVER"], v["SQL_DATABASE"])
+    try:
+        return get_cloud_connection(v["SQL_SERVER"], v["SQL_DATABASE"])
+    except Exception as exc:
+        name = type(exc).__name__
+        if "Credential" in name or "auth" in str(exc).lower():
+            raise RuntimeError(
+                f"Azure authentication failed ({name}).|"
+                "Run `az login` - DefaultAzureCredential has nothing to "
+                "use in a fresh Codespace.") from exc
+        raise RuntimeError(
+            f"Could not reach the database ({name}).|"
+            "The serverless database auto-pauses and takes 30-60s to "
+            "resume; retry once. If it persists, check the SQL firewall "
+            "- Codespaces are covered by the AllowAllWindowsAzureIps "
+            "rule, other machines need their IP added.") from exc
 
 
 def _git(*args):
@@ -240,11 +270,12 @@ def run_all():
         cnx = _connect()
         checks += [check_real_session(cnx), check_session_quality(cnx),
                    check_normalisation(cnx)]
+    except RuntimeError as exc:
+        detail, _, fix = str(exc).partition("|")
+        checks.append(Check("Database reachable", False, detail, fix))
     except Exception as exc:
         checks.append(Check("Database reachable", False,
-                            f"{type(exc).__name__}: connection failed",
-                            "The serverless database may be resuming - "
-                            "retry in a minute."))
+                            f"unexpected: {type(exc).__name__}", None))
     return checks
 
 

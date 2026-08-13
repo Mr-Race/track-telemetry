@@ -18,6 +18,48 @@ renders. The commit matters as much as the version — deploys are
 hand-run, so two builds of the same version are routine, and after an
 incident the first question is always *which build is live*.
 
+## Who runs this, and where
+
+**Not from the paddock.** The release runs from a Codespace or
+devcontainer on this repo — it needs the database, the Azure CLI, npm
+and a GitHub token. A phone at a track has none of those.
+
+The realistic sequence is: upload sessions at the track from the phone
+as usual, then later, from a machine, open the Codespace and either run
+the command or ask Claude Code to. The judgement — "was that a good
+session, is this what 1.0 should mean" — is yours; everything after it
+is mechanical.
+
+### What the environment needs
+
+| Requirement | Notes |
+|---|---|
+| `local.settings.json` | **Gitignored.** A fresh Codespace does not have it — `cp local.settings.json.example local.settings.json` and fill in `SQL_SERVER` / `SQL_DATABASE` |
+| `az login` | `DefaultAzureCredential` has nothing to use otherwise |
+| `GITHUB_TOKEN` | Provided automatically in Codespaces |
+| Database reachable | Codespaces are covered by the `AllowAllWindowsAzureIps` firewall rule, so any Codespace works. Another machine needs its IP added |
+
+`release_gate.py` names which of these is missing rather than reporting
+them all as "the database is unreachable".
+
+## Automated release
+
+```bash
+python scripts/release_gate.py                  # readiness only, writes nothing
+python scripts/cut_release.py 1.0.0             # plan, changes nothing
+python scripts/cut_release.py 1.0.0 --release   # tag, publish, deploy, verify
+```
+
+`cut_release.py` performs every step in the section below, in order, and
+refuses to start if the gate fails. It does **not** write the changelog:
+the `## [x.y.z]` section must already exist, authored by a human, and
+becomes the GitHub Release body.
+
+The gate is deliberately not wired to a trigger. It is objective, but
+"the release is good" is not purely mechanical — it includes whether the
+session was the day you actually had. Tagging is a decision; the steps
+after it are not.
+
 ## Cutting a release
 
 1. **Confirm the tree is clean and CI is green** on the commit you're
