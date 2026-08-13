@@ -180,7 +180,17 @@ def parse_csv(path):
             "throttle_pos": obd_value("throttle_pos"),
         })
     if not samples:
-        raise ValueError("No lap-numbered samples found in file.")
+        # RaceChrono's "Data logging" mode records every channel but does
+        # no lap timing, so `lap_number` is blank for the whole file. The
+        # bare version of this message sent someone hunting for a parser
+        # bug when the answer was a mode setting on the phone.
+        session_type = meta.get("Session type", "")
+        hint = ""
+        if session_type and session_type.strip().lower() != "lap timing":
+            hint = (f" Session type is {session_type!r}: only 'Lap timing' "
+                    "records lap numbers. Re-record in Lap timing mode "
+                    "with the track selected.")
+        raise ValueError("No lap-numbered samples found in file." + hint)
 
     diag = {
         # `pedal_channel` is the name as it appeared in the file, so the

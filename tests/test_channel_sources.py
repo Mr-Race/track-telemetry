@@ -123,3 +123,36 @@ class TestObdSourceVariation:
         assert diag["pedal_channel"] == "accelerator_pos"
         assert diag["has_rpm"] is True
         assert all(s["throttle_pos"] is not None for s in samples)
+
+
+class TestDataLoggingSessions:
+    """RaceChrono's 'Data logging' mode records every channel but does no
+    lap timing, so `lap_number` is blank for the whole file. That is a
+    phone setting, not a parser bug, and the error should say so."""
+
+    def test_blank_lap_numbers_name_the_session_type(self, make_csv):
+        rows = [["1786446720.000", "", "0.000", "40.7580", "-73.9855",
+                 "11.000"]]
+        path = make_csv(rows=rows)
+        text = path.read_text().replace("Session type,Lap timing",
+                                        "Session type,Data logging")
+        path.write_text(text)
+
+        with pytest.raises(ValueError) as exc:
+            parse_csv(path)
+
+        msg = str(exc.value)
+        assert "Data logging" in msg
+        assert "Lap timing" in msg
+
+    def test_lap_timing_files_get_no_spurious_hint(self, make_csv):
+        """A genuinely empty Lap timing file is a different problem, and
+        blaming the mode would send someone the wrong way."""
+        rows = [["1786446720.000", "", "0.000", "40.7580", "-73.9855",
+                 "11.000"]]
+        path = make_csv(rows=rows)
+
+        with pytest.raises(ValueError) as exc:
+            parse_csv(path)
+
+        assert "Session type" not in str(exc.value)
