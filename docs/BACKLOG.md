@@ -280,6 +280,23 @@ blocks 1.0.
       issue: a published Entra credential versus an unauthenticated read
       path, the latter reopening the anonymous-endpoint category the
       security review closed.
+- [ ] **Demo MCP server** (#33) — Part 2 of
+      `docs/specs/demo-and-public-domain.md`. A second Container App on
+      the same image, hard-coded to the demo `driver_id`, at
+      `mcp-demo.mr-race.com`, and **deliberately unauthenticated**: the
+      production server's OAuth exists to protect real location data,
+      and a visitor will not complete a consent flow against a
+      stranger's tenant. That is defensible *only* while the data is
+      fictional — if the demo ever moves to anonymised real data, this
+      decision has to be revisited. Depends on #29.
+- [ ] **mr-race.com as the public address** (#34) — Part 3 of the same
+      spec; supersedes the older custom-domain line below. The apex
+      can't take a CNAME and GoDaddy has no ALIAS, so either `www` is
+      canonical with an apex redirect, or DNS moves to Azure DNS for a
+      real alias record. Includes clearing stale parking and CDN
+      records. **Updating the Entra redirect URIs is the step that
+      breaks sign-in if forgotten** — before cutting traffic over, not
+      after.
 - [ ] **Claude-generated session assessment** (#30) — short generated
       text on session detail, produced at ingest and stored on the row
       rather than on page load, so it becomes part of the record.
@@ -297,6 +314,12 @@ blocks 1.0.
       currently one flat list. Collapsed by default with the most recent
       event expanded, and the state should survive navigating into a
       session and back.
+- [ ] **TV-style colour-coded segment times** (#5) — lap-detail view,
+      rows = laps, columns = segments, each cell coloured by how that
+      segment ranks. `dbo.segment_times` already carries the data.
+- [ ] **Brake fluid service life 12 -> 20 sessions** (#4) — the current
+      figure is too aggressive for the run group actually being driven;
+      a one-row update on the Integra's consumable.
 - [ ] **Gzip the CSV before upload** — raw RaceChrono exports run
       15-20 MB, which is slow and flaky over weak paddock cellular.
       Numeric telemetry CSV compresses roughly 10:1, so the same
@@ -336,8 +359,11 @@ blocks 1.0.
       coordinates and zone radii, writing to the corners table.
       Replaces the manual Google Maps coordinate workflow for new
       tracks.
-- [ ] **Login page on a custom domain (www.mr-race.com)** — front the
-      dashboard/MCP with the owned domain instead of raw Azure URLs.
+- [x] ~~**Login page on a custom domain (www.mr-race.com)**~~ —
+      **superseded 2026-08-13** by #34, which scopes the same work
+      properly (apex strategy, DNS cleanup, and the Entra redirect-URI
+      step that breaks sign-in if missed). See
+      `docs/specs/demo-and-public-domain.md` Part 3.
 - [ ] API Management in front of the ingest endpoint (hardening story)
 - [ ] Lock storage account networking to selected networks
       (documented hardening step)
