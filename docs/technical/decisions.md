@@ -75,9 +75,48 @@ was. When an error leaves no trace, look before authentication.
 
 ---
 
+## ADR-011 — One SQL connection per *thread*, not per process
+
+**2026-08-13 · Accepted · supersedes the connection half of ADR-007**
+
+ADR-007 shared a single connection across the whole process. On
+2026-08-13 every dashboard endpoint began returning 500:
+
+    InterfaceError: Invalid TDS marker: 4(4)
+    InterfaceError: Cursor is closed
+
+**Cause.** pytds connections are not thread-safe and allow one active
+cursor; `connection.cursor()` cancels whatever cursor is already open on
+that connection. A dashboard page load fetches sessions, detail, summary
+and consumables in parallel, so two requests routinely shared one wire
+and desynchronised the TDS stream. The liveness probe compounded it by
+running `SELECT 1` on the shared connection while another thread was
+mid-query.
+
+**Decision.** Connections are thread-local. The connect still happens
+under a lock, so concurrent first-callers queue behind one serverless
+resume rather than each triggering their own.
+
+This keeps what ADR-007 was actually for — not paying the resume per
+*request* — and drops the part that was never justified: sharing one
+connection between threads. A handful of worker threads pay the resume
+once each.
+
+**What made it survive review.** The test suite asserted *"N concurrent
+callers share a single connect"*, which pinned the broken behaviour as
+the correct behaviour. A passing test can encode a bug. The replacement
+asserts each thread gets its own connection, and was checked against a
+replay of the old design to confirm it fails there.
+
+**Revisit if:** connection count per process becomes a constraint, which
+would mean a real pool with checkout/checkin rather than a return to
+sharing.
+
+---
+
 ## ADR-007 — One pooled SQL connection and credential per process
 
-**2026-08-11 · Accepted**
+**2026-08-11 · Superseded in part by ADR-011**
 
 The serverless database auto-pauses after 60 idle minutes and the first
 connect waits 30-60s for a resume. Every request opened its own
