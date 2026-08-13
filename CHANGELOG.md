@@ -15,21 +15,48 @@ what broke and why. This file is the summary a reader wants first.
 
 ## [Unreleased]
 
-Remaining before 1.0: `accelerator_pos` verification against a real
-export (time-blocked on the next event), and the technical docs
-baseline.
+Nothing yet.
 
-### Fixed
+## [1.0.0] — unreleased
+
+The core loop is complete: capture, enrichment, a secured dashboard, and
+conversational analysis over real session data — with the pipeline
+proven end to end on a real export from the reconfigured logger.
+
+### Added
+- **Pedal position is calibrated.** Raw OBD values carry a sensor
+  voltage baseline, so the pedal at rest read 18.82% and at the stop
+  94.90% — a corner taken with the foot completely off reported 18.8%
+  throttle. Calibration is stored per `(car, channel)` and applied on
+  read, never at ingest, so a future sensor change cannot make history
+  double-correct
+- Sessions record which OBD channel produced their pedal values, so the
+  archive is no longer silently mixed across the 2026-08-10 logger change
+- **Documentation baseline** — architecture, schema and data dictionary,
+  API reference, runbook and a decision log, published at
+  https://mr-race.github.io/track-telemetry/. The schema page is
+  generated from the live database rather than transcribed, and the
+  whole set builds with `--strict` so a broken link fails CI
+- A release gate and release script: the gate checks against production
+  that a real session on the new channel parsed, produced usable laps
+  and corners, and normalised correctly
+
+### Changed
 - Channel sources are resolved by device rather than by logging rate, so
   changing the GPS rate in RaceChrono no longer fails every upload with
-  `Column not found: latitude`. The source qualifier is still required:
+  `Column not found: latitude`. The source qualifier is still required —
   `speed` appears three times in a real export, so matching by name
   alone would bind lap and corner metrics to OBD wheel speed
-- A dry run no longer archives a raw blob for a session it never loads
-- The first upload after the database auto-pauses survives the resume:
-  the login timeout was the same 60s as the top of the documented resume
-  window, with no retry. Measured at 59s against a genuinely paused
+- The first upload after the database auto-pauses survives the resume.
+  The login timeout was the same 60s as the top of the documented resume
+  window, with no retry; measured at 59s against a genuinely paused
   database
+
+### Fixed
+- A dry run no longer archives a raw blob for a session it never loads,
+  which is what makes it usable as a pre-event rehearsal
+- A lap-less export now explains itself: RaceChrono's "Data logging"
+  mode does no lap timing, which read as a parser bug
 
 ## [0.9.0] — 2026-08-12
 
@@ -91,5 +118,6 @@ needed for 1.0.
   Four sessions were recovered from the Blob archive after their local
   copies were gone.
 
-[Unreleased]: https://github.com/Mr-Race/track-telemetry/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Mr-Race/track-telemetry/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Mr-Race/track-telemetry/releases/tag/v1.0.0
 [0.9.0]: https://github.com/Mr-Race/track-telemetry/releases/tag/v0.9.0
