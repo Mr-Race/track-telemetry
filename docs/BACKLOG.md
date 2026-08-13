@@ -390,6 +390,46 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-13 — **Hardened the ingest path against the 2026-08-16
+      event, rehearsed end to end against a genuinely paused database.**
+      Three defects, each of which would have failed an upload in the
+      paddock with no way to fix it from a phone:
+      **1. Channel sources were matched by logging rate.** RaceChrono
+      writes a source as `<rate>: <device>`, and the parser matched the
+      literal `100: gps` — so lowering the GPS rate in the app would
+      fail every upload with `Column not found: latitude`. Now matched
+      on the device half, accepting `gnss` and qualified names.
+      *The originally proposed fix — falling back to a name-only match —
+      was wrong and was abandoned after checking real exports:* `speed`
+      appears three times (gps, obd, calc), so dropping the source
+      qualifier would have bound lap times and corner metrics to OBD
+      wheel speed. That trades a loud failure for silently wrong data,
+      which is the worse outcome. An unrecognised device still raises,
+      now naming the sources actually present.
+      **2. The fixtures couldn't have caught it.** conftest's own comment
+      claimed it reproduced the three-source `speed` layout; it built
+      one column. It now builds all three, with decoys offset by 50 m/s
+      so a mis-bind is unmistakable rather than plausible.
+      **3. `dry_run` wasn't dry** — it archived the raw blob before
+      reaching the dry-run check, leaving an orphan for a session that
+      was never loaded, and making the rehearsal itself unsafe.
+      Then the connection path: `login_timeout` was 60s, the same number
+      as the top of the documented 30–60s auto-pause resume window, with
+      no retry. Raised to 90s plus one retry, and `functionTimeout`
+      pinned to the 10-minute Consumption ceiling so a resume doesn't
+      compete with parsing an 87k-sample export.
+      **Verified against the platform, not the build.** The database
+      auto-paused on its own mid-test, which gave the real cold-start
+      case: a full upload of a Sunday-shaped file (renamed pedal channel
+      *and* changed GPS rate) returned HTTP 200 in **59 seconds** — one
+      second inside the old timeout. That single number is the argument
+      for the change; the previous code would have been a coin flip.
+      Event 7 resolved, 8 laps, all 13 corners, `accelerator_pos` read.
+      Negative controls run: no blob written, session count still 15,
+      zero sessions on event 7. 142 tests pass.
+      Two gaps this closes from the known-gaps list: the synthetic
+      `accelerator_pos` fixture is now backed by a real-file run, and
+      the ingest path has been exercised end to end against production.
 - [x] 2026-08-12 — **Release mechanics, proved by cutting v0.9.0.**
       `VERSION` at the repo root is the single source of truth —
       deliberately not `package.json`, since the Python side ships from

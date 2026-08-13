@@ -19,6 +19,18 @@ Remaining before 1.0: `accelerator_pos` verification against a real
 export (time-blocked on the next event), and the technical docs
 baseline.
 
+### Fixed
+- Channel sources are resolved by device rather than by logging rate, so
+  changing the GPS rate in RaceChrono no longer fails every upload with
+  `Column not found: latitude`. The source qualifier is still required:
+  `speed` appears three times in a real export, so matching by name
+  alone would bind lap and corner metrics to OBD wheel speed
+- A dry run no longer archives a raw blob for a session it never loads
+- The first upload after the database auto-pauses survives the resume:
+  the login timeout was the same 60s as the top of the documented resume
+  window, with no retry. Measured at 59s against a genuinely paused
+  database
+
 ## [0.9.0] — 2026-08-12
 
 First tagged release. The platform is feature-complete for 1.0 bar two
