@@ -53,8 +53,11 @@ and a dated `## Done` log. Live pieces:
 - [x] Engineering practices + information security reviews complete,
       all high-severity findings closed
 - [x] CI on every push: pytest (123), lint, typecheck, build
-- [ ] Remaining v1.0: docs baseline, mobile/responsive pass, historical
-      backfill, release mechanics — see `docs/BACKLOG.md`
+- [x] Released and tagged: **v0.9.0**, version + commit visible in the
+      dashboard footer (`CHANGELOG.md`, `docs/RELEASING.md`)
+- [ ] Remaining v1.0: technical docs baseline, and `accelerator_pos`
+      verified against a real export (time-blocked on the next event)
+      — see `docs/BACKLOG.md`
 
 ## Repo layout
 - `sql/` - numbered migrations, applied and recorded via

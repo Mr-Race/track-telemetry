@@ -46,13 +46,22 @@ incident the first question is always *which build is live*.
    date and message, and `git describe` prefers it.
 
 6. **Create the GitHub Release** against that tag, with the changelog
-   section as the body:
+   section as the body. `gh` is *not* installed in the Codespace, but
+   `$GITHUB_TOKEN` is present and carries push rights, so the API works
+   directly:
 
    ```bash
-   gh release create v0.9.0 --title "v0.9.0" --notes-file <(...)
+   # body = the changelog section for this version, as JSON
+   curl -s -X POST \
+     -H "Authorization: Bearer $GITHUB_TOKEN" \
+     -H "Accept: application/vnd.github+json" \
+     -d '{"tag_name":"v0.9.0","name":"v0.9.0","body":"...","prerelease":true}' \
+     https://api.github.com/repos/Mr-Race/track-telemetry/releases
    ```
 
-   or via the API / web UI if `gh` isn't installed.
+   Mark `prerelease: true` for anything below 1.0 — the versioning
+   scheme calls 0.x pre-stable, and the Release should say so rather
+   than leaving GitHub to label it "Latest" unqualified.
 
 7. **Deploy, and verify against the platform** — see
    `docs/WAY-OF-WORKING.md` §5. Then confirm the footer shows the

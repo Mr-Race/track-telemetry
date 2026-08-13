@@ -407,6 +407,22 @@ identity-level scope; design as one coherent release.
       Tagging and deploying are kept separate while deploys are manual:
       conflating them would mean either untested tags or untagged
       production builds.
+- [x] 2026-08-13 — **v0.9.0 actually cut, end to end.** Running the
+      runbook is what found its gaps, which was the point of writing it
+      early. CI confirmed green on the target commit *before* tagging;
+      annotated tag `v0.9.0` pushed; GitHub Release created from the
+      changelog section and marked `prerelease` (0.x is pre-stable by
+      our own scheme, so letting GitHub label it plain "Latest" would
+      overstate it). Two runbook corrections came out of the run: `gh`
+      is not installed in the Codespace, but `$GITHUB_TOKEN` is present
+      with push rights and the REST API works directly — recorded in
+      `docs/RELEASING.md` so the next release doesn't rediscover it.
+      Verified on the deployed site rather than the build output: the
+      live asset hash matches the one just built, and the bundle
+      carries `0.9.0` and commit `094c985`. Ran the negative control
+      too — the previous commit `7bcf58b` and a bogus `0.8.0` both
+      return zero hits, so the greps are discriminating and not just
+      matching anything. A check that cannot fail proves nothing.
 - [x] 2026-08-12 — **Mobile/responsive pass.** The page now scrolls
       vertically only at every phone width.
       Measured before touching anything: **every page overflowed at
