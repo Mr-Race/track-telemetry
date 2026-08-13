@@ -1,5 +1,7 @@
 {
   "version": "2.0",
+  "//functionTimeout": "The serverless database auto-pauses after 60 idle minutes, and the first connect after a pause waits 30-60s for it to resume. On the 5-minute Consumption default that resume competes with parsing an 87k-sample export for the same budget. 10 minutes is the Consumption ceiling and costs nothing on an idle app.",
+  "functionTimeout": "00:10:00",
   "logging": {
     "applicationInsights": {
       "samplingSettings": {

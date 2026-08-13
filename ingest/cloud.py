@@ -23,7 +23,15 @@ SQL_SCOPE = "https://database.windows.net/.default"
 # The free-tier serverless DB auto-pauses after inactivity; the first
 # connection after a pause can take 30-60s to resume, well past pytds's
 # 15s default.
-LOGIN_TIMEOUT_S = 60
+#
+# 60s was the same number as the top of that range, so a slow resume
+# failed the connect outright. The upload that pays this cost is always
+# the first of the day - at a track, on a phone, from someone who can't
+# do anything about it - so the margin is deliberately generous, and one
+# retry follows: a connect that times out has already *started* the
+# resume, so the second attempt usually returns quickly.
+LOGIN_TIMEOUT_S = 90
+CONNECT_ATTEMPTS = 2
 
 
 def qmark_to_pyformat(sql):
@@ -161,6 +169,26 @@ def _open_connection(server, database):
     return _QmarkConnection(cnx)
 
 
+def _connect_with_resume(server, database):
+    """Open a connection, retrying once past an auto-pause resume.
+
+    The exception type is logged but never its text: connection errors
+    can carry server and principal detail, and this runs in a request
+    path (see the internal-exception finding fixed on 2026-08-05).
+    """
+    last_exc = None
+    for attempt in range(1, CONNECT_ATTEMPTS + 1):
+        try:
+            return _open_connection(server, database)
+        except Exception as exc:
+            last_exc = exc
+            logging.warning(
+                "SQL connect attempt %d/%d failed (%s) - the database may "
+                "be resuming from auto-pause",
+                attempt, CONNECT_ATTEMPTS, type(exc).__name__)
+    raise last_exc
+
+
 def _is_alive(cnx):
     """Cheap liveness probe. A pooled connection can be closed under us
     by an idle timeout or by the database pausing, and the failure shows
@@ -208,7 +236,7 @@ def get_cloud_connection(server, database):
                 logging.debug("discarding a dead pooled connection",
                               exc_info=True)
 
-        _connection = _open_connection(server, database)
+        _connection = _connect_with_resume(server, database)
         _connection_key = key
         return _connection
 

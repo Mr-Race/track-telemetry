@@ -159,3 +159,71 @@ class TestCredential:
 
         assert first is second
         assert len(built) == 1
+
+
+class TestAutoPauseResume:
+    """The first upload of a track day is the one that pays for the
+    resume, and it happens on a phone in a paddock. A connect that times
+    out mid-resume must not end the request."""
+
+    def test_retries_once_past_a_failed_resume(self, monkeypatch):
+        monkeypatch.setattr(cloud, "_connection", None)
+        monkeypatch.setattr(cloud, "_connection_key", None)
+        attempts = []
+
+        def flaky_open(server, database):
+            attempts.append((server, database))
+            if len(attempts) == 1:
+                raise TimeoutError("login timed out")
+            return FakeConnection()
+
+        monkeypatch.setattr(cloud, "_open_connection", flaky_open)
+
+        cnx = cloud.get_cloud_connection("srv", "db")
+
+        assert cnx is not None
+        assert len(attempts) == 2
+
+    def test_gives_up_after_the_configured_attempts(self, monkeypatch):
+        """It retries, it doesn't loop - a genuinely unreachable database
+        should surface rather than hold the request open."""
+        monkeypatch.setattr(cloud, "_connection", None)
+        monkeypatch.setattr(cloud, "_connection_key", None)
+        attempts = []
+
+        def always_fails(server, database):
+            attempts.append(1)
+            raise TimeoutError("login timed out")
+
+        monkeypatch.setattr(cloud, "_open_connection", always_fails)
+
+        with pytest.raises(TimeoutError):
+            cloud.get_cloud_connection("srv", "db")
+
+        assert len(attempts) == cloud.CONNECT_ATTEMPTS
+
+    def test_connect_failures_do_not_log_the_exception_text(
+            self, monkeypatch, caplog):
+        """Connection errors can name the server and the principal. The
+        type is enough to diagnose a resume timeout."""
+        monkeypatch.setattr(cloud, "_connection", None)
+        monkeypatch.setattr(cloud, "_connection_key", None)
+        secret = "sql-host=free-sql-server; user=super-secret-principal"
+
+        def always_fails(server, database):
+            raise TimeoutError(secret)
+
+        monkeypatch.setattr(cloud, "_open_connection", always_fails)
+
+        with caplog.at_level("WARNING"):
+            with pytest.raises(TimeoutError):
+                cloud.get_cloud_connection("srv", "db")
+
+        assert "TimeoutError" in caplog.text
+        assert secret not in caplog.text
+        assert "super-secret-principal" not in caplog.text
+
+    def test_login_timeout_exceeds_the_documented_resume_window(self):
+        """The old value was 60s - the same number as the top of the
+        documented 30-60s resume range, so a slow resume failed."""
+        assert cloud.LOGIN_TIMEOUT_S > 60
