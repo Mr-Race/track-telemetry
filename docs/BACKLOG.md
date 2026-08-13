@@ -251,7 +251,7 @@ blocks 1.0.
       double-correct. (RaceChrono's gauge and the car's dash both show
       100% at full pedal; that's UI normalization, not the raw signal.
       The CSV ceiling of 94.90 is the real one.)
-- [ ] **Docs baseline (living documentation v1)** — technical +
+- [x] **Docs baseline (living documentation v1)** — DONE 2026-08-13 — technical +
       business doc sets as docs-as-code in the repo
       (docs/technical/, docs/business/), updated in the same commits
       as the changes they describe, rendered via GitHub Pages
@@ -440,6 +440,32 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-13 — **Docs baseline (living documentation v1).**
+      `docs/technical/` now carries architecture (with the session flow
+      and where the sharp edges are), a schema/data dictionary,
+      an API reference, a runbook, and an ADR-style decision log;
+      `docs/business/` gains the cost model and a releases/roadmap
+      narrative. Rendered with MkDocs Material via a Pages workflow.
+      **The schema page is generated from the live database**, not
+      transcribed - every table, column, type, key and foreign key read
+      from `INFORMATION_SCHEMA` and `sys.foreign_keys`, then annotated
+      by hand with what the types don't say (start_time is local not
+      UTC; the pedal percentage is raw and normalised on read; two
+      tracks share the name `NJMP Thunderbolt`). A hand-written data
+      dictionary is wrong within a month.
+      The docs build with `--strict` in CI, so a broken internal link
+      fails the build. That caught four links which were valid on
+      GitHub but broken in the rendered site - they now use absolute
+      URLs so both renderings work.
+      The decision log records ten ADRs, each with what it cost and
+      what would reverse it, including the ones that were wrong first:
+      the name-only channel fallback that would have silently bound lap
+      times to OBD wheel speed, and the trailing slash that cost a day
+      of MCP OAuth debugging.
+      **Outstanding, needs AC:** GitHub Pages must be switched to the
+      "GitHub Actions" source in repo settings - the Codespaces token
+      lacks the admin scope to do it. The workflow is in place and will
+      publish on the next push once flipped.
 - [x] 2026-08-13 — **Hardened the ingest path against the 2026-08-16
       event, rehearsed end to end against a genuinely paused database.**
       Three defects, each of which would have failed an upload in the

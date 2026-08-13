@@ -16,15 +16,19 @@ interview conversations.
 3. **[The working model](working-model.md)** — AI-assisted
    engineering as practiced here: division of labor, review
    discipline, conversational governance. The leadership story.
-4. **Outcomes** *(planned)* — the proof points expanded into short
+4. **[Cost model](cost-model.md)** — how a full cloud platform runs
+   at effectively $0/month, why that's architecture rather than
+   frugality, and what the design pays for it in latency.
+5. **[Releases and roadmap](releases.md)** — what shipped in each
+   version in business terms, what's next, and how the order gets
+   decided.
+6. **Outcomes** *(planned)* — the proof points expanded into short
    case studies: the optimal-lap prediction, the data-quality
    catches, the cost audit.
-5. **Cost model** *(planned)* — how a full cloud platform runs at
-   effectively $0/month, and why that's architecture rather than
-   frugality.
-6. **Release notes** *(planned, starts at v1.0)* — what shipped in
-   each version, in business terms.
+
+For readers who want the engineering detail, the
+[technical documentation](../technical/index.md) covers architecture,
+schema, API, runbook and the decision log.
 
 *Maintained as docs-as-code: updated in the same commits as the
-changes they describe. Rendered via GitHub Pages (v1.0 docs
-baseline item).*
+changes they describe.*

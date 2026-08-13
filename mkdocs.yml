@@ -1,0 +1,70 @@
+site_name: Track Telemetry Platform
+site_description: >-
+  A personal HPDE track-day telemetry platform: RaceChrono CSV to Azure
+  SQL to Claude via MCP, with a React dashboard.
+repo_url: https://github.com/Mr-Race/track-telemetry
+repo_name: Mr-Race/track-telemetry
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.details
+
+nav:
+  - Home: index.md
+  - Business:
+      - Overview: business/index.md
+      - The story: business/overview.md
+      - How it works: business/how-it-works.md
+      - The working model: business/working-model.md
+      - Cost model: business/cost-model.md
+      - Releases and roadmap: business/releases.md
+  - Technical:
+      - Overview: technical/index.md
+      - Architecture: technical/architecture.md
+      - Schema and data dictionary: technical/schema.md
+      - API reference: technical/api.md
+      - Runbook: technical/runbook.md
+      - Decision log: technical/decisions.md
+  - Reviews:
+      - Engineering review: specs/engineering-review.md
+      - Security review: specs/security-review.md
+      - Event summary spec: specs/event-summary-page.md
+  - Practices:
+      - Way of working: WAY-OF-WORKING.md
+      - Backlog: BACKLOG.md
+      - Releasing: RELEASING.md
+  - Setup:
+      - MCP server: mcp_server.md
+      - iOS Shortcut: ios_shortcut.md
