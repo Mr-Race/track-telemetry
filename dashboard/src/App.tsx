@@ -147,7 +147,24 @@ function App() {
           />
         </Routes>
       </main>
+      <AppFooter />
     </div>
+  );
+}
+
+function AppFooter() {
+  // Version and commit are injected at build time (vite.config.ts). The
+  // commit is the half that actually answers "which build is this" -
+  // deploys are hand-run, so two builds of the same version are
+  // routine, and after an incident the first question is always which
+  // one is live.
+  return (
+    <footer className="app-footer">
+      <a href="https://github.com/Mr-Race/track-telemetry">track-telemetry</a>
+      {" v"}
+      {__APP_VERSION__}
+      <span className="app-footer-commit"> · {__APP_COMMIT__}</span>
+    </footer>
   );
 }
 

@@ -245,8 +245,6 @@ blocks 1.0.
         v1.x if ever wanted for audience reasons — requirement is
         currency, not the tool; Pages is the system of record's
         renderer.
-- [ ] **Release mechanics** — first git tag `v1.0.0` + GitHub
-      Release, CHANGELOG.md created, version in dashboard footer.
 
 ## v1.x — post-launch backlog (additive)
 - [ ] **Gzip the CSV before upload** — raw RaceChrono exports run
@@ -392,6 +390,23 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-12 — **Release mechanics, proved by cutting v0.9.0.**
+      `VERSION` at the repo root is the single source of truth —
+      deliberately not `package.json`, since the Python side ships from
+      the same repo and has no `package.json` to read.
+      `dashboard/vite.config.ts` injects the version *and the short
+      commit* at build time; the footer renders both. The commit is the
+      half that earns its place: deploys are hand-run, so two builds of
+      one version are routine, and after an incident the first question
+      is always which build is live. `CHANGELOG.md` summarises per
+      release, with the Done log staying the detailed record.
+      `docs/RELEASING.md` is the runbook.
+      **Tagged 0.9.0 rather than 1.0.0 on purpose** — two v1.0 items are
+      still open, and the point of building this now is to find the
+      process broken before the release that matters, not during it.
+      Tagging and deploying are kept separate while deploys are manual:
+      conflating them would mean either untested tags or untagged
+      production builds.
 - [x] 2026-08-12 — **Mobile/responsive pass.** The page now scrolls
       vertically only at every phone width.
       Measured before touching anything: **every page overflowed at

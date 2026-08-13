@@ -15,6 +15,8 @@ piece demonstrating cloud + AI architecture.
   findings do **not** go in issues.
 - **[sql/README.md](sql/README.md)** — how migrations are applied and
   recorded.
+- **[CHANGELOG.md](CHANGELOG.md)** — what changed per release;
+  **[docs/RELEASING.md](docs/RELEASING.md)** — how to cut one.
 
 ## Architecture
 RaceChrono CSV v3 -> iOS Shortcut (share sheet) -> HTTP Azure Function
