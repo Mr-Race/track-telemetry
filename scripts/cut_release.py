@@ -30,7 +30,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = "Mr-Race/track-telemetry"
 SWA_NAME = "swa-track-telemetry-dashboard"
 RESOURCE_GROUP = "Track-telemetry"
-DASHBOARD_HOST = "https://salmon-moss-0a7e4b70f.7.azurestaticapps.net"
+# Verify against the canonical public address, not the origin behind
+# it - that is what a reader actually visits. The Azure host stays a
+# registered redirect URI and CORS origin, so both keep working.
+DASHBOARD_HOST = "https://www.mr-race.com"
 
 
 def run(cmd, check=True, cwd=REPO_ROOT, capture=True):

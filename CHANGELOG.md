@@ -40,6 +40,10 @@ proven end to end on a real export from the reconfigured logger.
 - A release gate and release script: the gate checks against production
   that a real session on the new channel parsed, produced usable laps
   and corners, and normalised correctly
+- **The dashboard is at https://www.mr-race.com**, with an auto-renewing
+  managed certificate; the apex redirects to it
+- A DNS sweep for dangling CNAMEs, which are a subdomain-takeover risk
+  and are created by deleting cloud resources rather than by editing DNS
 
 ### Changed
 - Channel sources are resolved by device rather than by logging rate, so
@@ -53,6 +57,10 @@ proven end to end on a real export from the reconfigured logger.
   database
 
 ### Fixed
+- **Every API endpoint 500'd under concurrent requests.** One SQL
+  connection was shared across the whole process, but pytds connections
+  are not thread-safe and allow a single active cursor, so parallel
+  requests corrupted the connection. Connections are now per-thread
 - A dry run no longer archives a raw blob for a session it never loads,
   which is what makes it usable as a pre-event rehearsal
 - A lap-less export now explains itself: RaceChrono's "Data logging"

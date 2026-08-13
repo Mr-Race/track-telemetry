@@ -17,15 +17,18 @@ piece demonstrating cloud + AI architecture.
   recorded.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed per release;
   **[docs/RELEASING.md](docs/RELEASING.md)** — how to cut one.
+- **[docs/technical/](docs/technical/)** — architecture, schema and data
+  dictionary, API reference, runbook, decision log. Published at
+  <https://mr-race.github.io/track-telemetry/>.
 
 ## Architecture
 RaceChrono CSV v3 -> iOS Shortcut (share sheet) -> HTTP Azure Function
 (`func-track-telemetry-ingest`, parse/enrich)
 -> Azure SQL (`free-sql-db-7848405`, source of truth) + Blob
 (`racechronoraw`, raw archive)
--> MCP server (`ca-track-telemetry-mcp`, Container Apps, managed
-identity, read-only) + React dashboard
-(`swa-track-telemetry-dashboard`, Static Web Apps, Entra ID auth)
+-> MCP server (`mcp.mr-race.com`, Container Apps, managed identity,
+read-only) + React dashboard (`www.mr-race.com`, Static Web Apps,
+Entra ID auth)
 -> Claude custom connector / browser
 
 Power BI was dropped from the roadmap (2026-07-22, see
@@ -52,12 +55,18 @@ and a dated `## Done` log. Live pieces:
 - [x] Write-capable dashboard features: event management, car catalog
 - [x] Engineering practices + information security reviews complete,
       all high-severity findings closed
-- [x] CI on every push: pytest (123), lint, typecheck, build
+- [x] CI on every push: pytest (175), vitest, lint, typecheck, build
 - [x] Released and tagged: **v0.9.0**, version + commit visible in the
       dashboard footer (`CHANGELOG.md`, `docs/RELEASING.md`)
-- [ ] Remaining v1.0: technical docs baseline, and `accelerator_pos`
-      verified against a real export (time-blocked on the next event)
-      — see `docs/BACKLOG.md`
+- [x] **Dashboard at `https://www.mr-race.com`** — custom domain, managed
+      certificate, apex 301s to `www`
+- [x] Documentation published at
+      <https://mr-race.github.io/track-telemetry/> — architecture, schema,
+      API, runbook, decision log, plus the business set
+- [x] Pedal position calibrated per `(car, channel)` and normalised on
+      read; each session records which OBD channel produced its values
+- [ ] Remaining v1.0: `accelerator_pos` verified against a real export
+      (time-blocked on the next event) — see `docs/BACKLOG.md`
 
 ## Repo layout
 - `sql/` - numbered migrations, applied and recorded via

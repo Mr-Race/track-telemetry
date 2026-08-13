@@ -43,7 +43,7 @@ the source of several design decisions below, and is deliberate — see
 | Database | Azure SQL serverless, free tier | Entra only, no SQL logins | Auto-pauses after 60 idle minutes |
 | Raw archive | Blob Storage | Managed identity | Container `racechrono-raw` |
 | MCP server | Container Apps | OAuth 2.1 + PKCE via Entra | `mcp.mr-race.com`, read-only |
-| Dashboard | Static Web Apps | MSAL (OAuth 2.1 + PKCE) | React + Vite + TypeScript |
+| Dashboard | Static Web Apps | MSAL (OAuth 2.1 + PKCE) | React + Vite + TypeScript, at `www.mr-race.com` |
 | Telemetry | Application Insights | — | Ingest path instrumented |
 
 Parsing is stdlib-only and lives in `ingest/`, separate from cloud

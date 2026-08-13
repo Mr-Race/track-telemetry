@@ -62,9 +62,12 @@ decision that only exists in a chat doesn't exist — and an unproven
 assumption is the same kind of thing. Reviewed 2026-08-10.
 
 **Verification gaps** — shipped and believed working, never observed:
-- The 500 error envelope has never been triggered in production. Auth
-  runs first, so forcing one needs a valid token. Verified statically
-  (no `str(exc)` remains in any 500 branch) and by unit test only.
+- ~~The 500 error envelope has never been triggered in production~~ —
+  **closed 2026-08-13, involuntarily.** The connection outage fired it for
+  real: the browser showed `Error: Internal server error` with no stack
+  trace and no internal detail, and the traceback reached Application
+  Insights with a correlating `error_id`. The S-1 fix behaved exactly as
+  designed under conditions nobody arranged.
 - The ingest **duplicate path** has never run end-to-end against prod.
   The content-hash lookup, the refresh-vs-load branch and the DB
   constraint are each verified individually, but nothing has actually
@@ -466,6 +469,62 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-13 — **Production outage: one SQL connection shared across
+      threads.** Every dashboard endpoint returned 500 with
+      `InterfaceError: Invalid TDS marker: 4(4)` and `Cursor is closed`.
+      pytds connections are not thread-safe and allow one active cursor —
+      `connection.cursor()` cancels whatever cursor is already open — and
+      issue #16's fix shared a single connection process-wide. A page load
+      fetches sessions, detail, summary and consumables in parallel, so
+      this was every page load. The liveness probe compounded it, running
+      `SELECT 1` on the shared connection while another thread was
+      mid-query. Latent since 2026-08-11.
+      Fixed by making connections thread-local, which keeps what issue #16
+      was for (not paying the serverless resume per *request*) and drops
+      the part never justified — sharing one wire between threads.
+      Verified with 6-way forced concurrency against the production
+      database running the real page-load query mix. Recorded as ADR-011,
+      superseding the connection half of ADR-007.
+      **The uncomfortable part: the test suite asserted the bug was
+      correct.** `test_concurrent_callers_share_a_single_connect` pinned
+      "N concurrent callers share a single connect" as desired behaviour
+      and passed throughout. A passing test can protect a defect. The
+      replacement asserts the opposite and was checked against a replay of
+      the old design to confirm it fails there.
+- [x] 2026-08-13 — **mr-race.com is the platform's address** (#34, part).
+      `www.mr-race.com` serves the dashboard with an auto-renewing managed
+      certificate; the apex issues an HTTPS 301 to `www`. No code change
+      was needed — `redirectUri: "/"` is origin-relative and the bundle
+      carries no hardcoded hostname, which is why this was config and not
+      a rebuild.
+      Sequenced so every destructive step came after its replacement was
+      proven: CNAME first, then hostname registration, then the Entra
+      redirect URI, then the apex. CORS was added ahead of time so the
+      step most likely to be forgotten couldn't be.
+      **Found and closed a subdomain-takeover risk in passing:**
+      `www.mr-race.com` had been a dangling CNAME pointing at a
+      deprovisioned Azure CDN endpoint (NXDOMAIN), and by the time it
+      became an Entra redirect URI a takeover would have meant receiving
+      OAuth authorization codes. Details in `.local/` per SECURITY.md —
+      not here, and not in the issue.
+      `scripts/dns_audit.py` now sweeps the zone for dangling CNAMEs and
+      runs inside `release_gate.py`. Deliberately **not** a scheduled
+      workflow: on a public repo the run log would publish the exact
+      hostname an attacker needs to claim. Verified by replaying the zone
+      as it stood before the fix, where it flags the one bad record.
+- [x] 2026-08-13 — **Release automation.** `scripts/release_gate.py`
+      answers the question 1.0 actually turns on — has a real
+      `accelerator_pos` export survived the whole pipeline — plus clean
+      tree, closed v1.0 scope, tests, CI, and dangling DNS. It writes
+      nothing and every failure prints what to do about it.
+      `scripts/cut_release.py` then runs every step of `docs/RELEASING.md`
+      and refuses to start if the gate fails; default is a plan, and
+      `--release` is required to change anything. It does not write the
+      changelog — generated release notes read like generated release
+      notes — so the 1.0.0 section is pre-written.
+      Proved in both directions: a temporary session on the new channel
+      flipped all three data checks to PASS, and removing it flipped them
+      back. A gate that has only ever said "no" is unverified.
 - [x] 2026-08-13 — **Pedal calibration: the second half of issue #8.**
       Raw OBD pedal values carry a sensor voltage baseline, so the pedal
       at rest read 18.82% and at the stop 94.90%. A corner taken with
