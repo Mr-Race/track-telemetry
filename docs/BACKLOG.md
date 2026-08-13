@@ -247,6 +247,32 @@ blocks 1.0.
         renderer.
 
 ## v1.x — post-launch backlog (additive)
+- [ ] **Demo account with fictional data** (#29) — the repo is public and
+      linked from job applications, but the dashboard is behind Entra
+      sign-in and the MCP server behind OAuth, so a visitor sees a login
+      wall. Fictional sessions rather than anonymised real ones: GPS
+      traces are personal location data even without a name. Isolated by
+      a `Demo` driver row, read-only. Open question recorded on the
+      issue: a published Entra credential versus an unauthenticated read
+      path, the latter reopening the anonymous-endpoint category the
+      security review closed.
+- [ ] **Claude-generated session assessment** (#30) — short generated
+      text on session detail, produced at ingest and stored on the row
+      rather than on page load, so it becomes part of the record.
+      Prompt input is the summary and corner metrics, never raw
+      telemetry. Introduces the system's first real secret — Key Vault
+      read via managed identity, not app settings. Fails soft: a failed
+      generation leaves the field null and never blocks ingest.
+- [ ] **Upload a session from the event page** (#31) — the fallback for
+      when the iOS Shortcut fails at the track. Design problem to settle
+      first: `/api/ingest` is function-key gated while every other route
+      takes an MSAL bearer token, and the key must not reach the
+      browser. Needs real progress indication — 15-20 MB files, and the
+      first upload of the day also pays the ~59s serverless resume.
+- [ ] **Expand and collapse sessions on the events list** (#32) —
+      currently one flat list. Collapsed by default with the most recent
+      event expanded, and the state should survive navigating into a
+      session and back.
 - [ ] **Gzip the CSV before upload** — raw RaceChrono exports run
       15-20 MB, which is slow and flaky over weak paddock cellular.
       Numeric telemetry CSV compresses roughly 10:1, so the same
