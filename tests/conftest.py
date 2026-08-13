@@ -14,31 +14,67 @@ import textwrap
 
 import pytest
 
-# Channel layout mirrors a real v3 export: `speed` appears three times
-# under different sources, which is why the parser disambiguates GPS
-# columns by source rather than by name alone.
+# Channel layout mirrors a real v3 export. In a real file `speed`
+# appears three times - under gps, obd and calc - so every fixture
+# carries all three. The two decoys are appended by `build_csv` with
+# deliberately wrong values (see DECOY_OFFSET): if the parser ever binds
+# speed by name alone, or to the wrong device, the speeds these tests
+# assert on move by a large, obvious amount instead of the file parsing
+# happily with quietly wrong numbers.
 BASE_NAMES = ["timestamp", "lap_number", "elapsed_time",
               "latitude", "longitude", "speed"]
 BASE_UNITS = ["unix time", "", "s", "deg", "deg", "m/s"]
-BASE_SOURCES = ["", "", "", "100: gps", "100: gps", "100: gps"]
+BASE_SOURCES = ["", "", "", "GPS", "GPS", "GPS"]
+
+# Decoy speeds are offset far enough that a mis-bind can't be mistaken
+# for a rounding difference.
+DECOY_OFFSET = 50.0
 
 OBD_UNITS = {"rpm": "rpm", "throttle_pos": "%", "accelerator_pos": "%"}
 
 
 def build_csv(tmp_path, obd_channels=(), rows=None, name="session.csv",
-              created="16/05/2026,18:06", track="NJMP Lightning"):
+              created="16/05/2026,18:06", track="NJMP Lightning",
+              gps_source="100: gps", obd_source="200: obd",
+              decoy_speeds=True):
     """Write a synthetic v3 export and return its path.
 
     obd_channels: channel names to append under source `200: obd`.
     rows: list of row-lists (already stringified). Defaults to a short
     two-lap run with plausible values.
+    gps_source/obd_source: the source strings to write, so a test can
+    vary the logging rate or device name the way RaceChrono would.
+    decoy_speeds: append the obd and calc `speed` columns a real export
+    carries. On by default - the realistic shape is the useful one.
     """
     names = BASE_NAMES + list(obd_channels)
     units = BASE_UNITS + [OBD_UNITS.get(c, "") for c in obd_channels]
-    sources = BASE_SOURCES + ["200: obd"] * len(obd_channels)
+    sources = [gps_source if s == "GPS" else s for s in BASE_SOURCES]
+    sources += [obd_source] * len(obd_channels)
 
     if rows is None:
         rows = default_rows(len(obd_channels))
+
+    if decoy_speeds:
+        width = len(names)
+        speed_i = BASE_NAMES.index("speed")
+        names += ["speed", "speed"]
+        units += ["m/s", "m/s"]
+        sources += [obd_source, "calc"]
+
+        def widen(r):
+            # Rows of a deliberately wrong width are the malformed-row
+            # tests' subject matter - leave them wrong. A blank speed is
+            # the missing-GPS case, and its decoys are blank too.
+            if len(r) != width:
+                return list(r)
+            raw = str(r[speed_i]).strip()
+            if not raw:
+                return list(r) + ["", ""]
+            return list(r) + [f"{float(raw) + DECOY_OFFSET:.3f}",
+                              f"{float(raw) + DECOY_OFFSET * 2:.3f}"]
+
+        rows = [widen(r) for r in rows]
 
     header = textwrap.dedent(f"""\
         This file is created using RaceChrono Pro v10.2.4 ( http://racechrono.com/ ).

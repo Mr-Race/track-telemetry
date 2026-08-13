@@ -407,7 +407,13 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
         # The original is already archived for a re-upload, so don't
         # write a second identical blob - "raw data is sacred" means the
         # first copy stays, not that every POST gets its own.
-        if existing is None:
+        #
+        # A dry run writes nothing at all. It used to archive the blob
+        # before reaching the dry_run check below, so rehearsing an
+        # upload left an orphan blob behind for a session that was never
+        # loaded - which makes the dry run useless as a safe rehearsal
+        # and quietly grows the archive with files nothing references.
+        if existing is None and not dry_run:
             blob_name = (f"{event_id}/{session_number}_{int(time.time())}"
                          f"_{uuid.uuid4().hex[:8]}_{filename}")
             upload_raw_blob(os.environ["STORAGE_ACCOUNT_URL"], RAW_CONTAINER,
@@ -447,9 +453,11 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
             "parse": parse_diag,
         }
         logging.info(
-            "ingest parse: pedal_channel=%s has_rpm=%s rows_used=%d skipped=%s",
-            parse_diag["pedal_channel"], parse_diag["has_rpm"],
-            parse_diag["rows_used"], parse_diag["rows_skipped"])
+            "ingest parse: pedal_channel=%s gps_source=%s has_rpm=%s "
+            "rows_used=%d skipped=%s",
+            parse_diag["pedal_channel"], parse_diag["gps_source"],
+            parse_diag["has_rpm"], parse_diag["rows_used"],
+            parse_diag["rows_skipped"])
 
         summary["duplicate"] = existing is not None
 

@@ -45,6 +45,27 @@ MPS_TO_MPH = 2.23694
 # archived originals stay the system of record. See GitHub issue #8.
 PEDAL_CHANNELS = ("accelerator_pos", "throttle_pos")
 
+# RaceChrono writes each channel's source as `<rate>: <device>` -
+# `100: gps`, `200: obd`. The numeric prefix is the logging rate, so
+# changing a device's rate in the app's settings rewrites the source
+# string on every one of its channels. Matching the literal `100: gps`
+# therefore couples the parser to a setting that has nothing to do with
+# which device a channel came from, and a rate change would fail the
+# parse with `Column not found: latitude`. Match on the device half.
+#
+# The device half still has to be matched, not dropped: `speed` appears
+# three times in a real export - under gps, obd and calc - so a
+# name-only lookup would silently bind lap and corner metrics to OBD
+# wheel speed or a derived value. Losing the source qualifier trades a
+# loud failure for wrong numbers, which is the worse outcome.
+GPS_SOURCES = ("gps", "gnss")  # gnss is the usual rename of this device
+OBD_SOURCE = ("obd",)
+
+
+def source_kind(source):
+    """`100: gps` -> `gps`; `calc` -> `calc`. Drops the rate prefix."""
+    return source.split(":")[-1].strip().lower()
+
 
 # ---------------------------------------------------------------- parsing
 
@@ -72,20 +93,34 @@ def parse_csv(path):
 
     names, units, sources = rows[hidx], rows[hidx + 1], rows[hidx + 2]
 
-    def col(name, source=None):
-        for i, n in enumerate(names):
-            if n == name and (source is None or sources[i].strip() == source):
-                return i
-        raise ValueError(f"Column not found: {name} (source={source})")
+    def col(name, kinds=None):
+        """Index of `name`, optionally restricted to a source device.
+        `kinds` is a tuple of accepted device names, matched by prefix so
+        a qualified source like `gps (u-blox)` still resolves."""
+        named = [i for i, n in enumerate(names) if n == name]
+        if kinds is None:
+            hits = named
+        else:
+            hits = [i for i in named
+                    if source_kind(sources[i]).startswith(kinds)]
+        if not hits:
+            seen = sorted({sources[i].strip() or "(none)" for i in named})
+            raise ValueError(
+                f"Column not found: {name} from {'/'.join(kinds or ())!r}. "
+                + (f"Present under {seen} - the export's source names "
+                   "changed; see GPS_SOURCES in racechrono_parser.py."
+                   if named else "The channel is absent entirely."))
+        return hits[0]
 
     ci = {
         "ts": col("timestamp"),
         "lap": col("lap_number"),
         "elapsed": col("elapsed_time"),
-        "lat": col("latitude", "100: gps"),
-        "lon": col("longitude", "100: gps"),
-        "speed": col("speed", "100: gps"),
+        "lat": col("latitude", GPS_SOURCES),
+        "lon": col("longitude", GPS_SOURCES),
+        "speed": col("speed", GPS_SOURCES),
     }
+    gps_source = sources[ci["lat"]].strip()
 
     # OBD channels are only present when the device is paired to the
     # car's OBD-II port - absent whenever the dongle isn't paired,
@@ -95,7 +130,7 @@ def parse_csv(path):
     # rather than failing the whole parse.
     def optional_col(name):
         try:
-            return col(name, "200: obd")
+            return col(name, OBD_SOURCE)
         except ValueError:
             return None
 
@@ -151,6 +186,10 @@ def parse_csv(path):
         # `pedal_channel` is the name as it appeared in the file, so the
         # upload response can say which one was actually read.
         "pedal_channel": pedal_channel,
+        # Likewise the GPS source as written in the file. If a rate change
+        # ever makes this read something other than `100: gps`, the parse
+        # still succeeded - but it's worth seeing at upload time.
+        "gps_source": gps_source,
         "has_rpm": obd_ci["rpm"] is not None,
         "has_obd": pedal_channel is not None or obd_ci["rpm"] is not None,
         "rows_used": len(samples),
