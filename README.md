@@ -13,6 +13,8 @@ piece demonstrating cloud + AI architecture.
   If a decision only exists in a chat, it doesn't exist.
 - **[SECURITY.md](SECURITY.md)** — this repo is public; security
   findings do **not** go in issues.
+- **[LICENSE](LICENSE)** — public for reading, not open source. See
+  [License](#license) below.
 - **[sql/README.md](sql/README.md)** — how migrations are applied and
   recorded.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed per release;
@@ -80,3 +82,16 @@ and a dated `## Done` log. Live pieces:
 - `tests/` - pytest suite; `pip install -r requirements-dev.txt`, then
   `pytest`
 - `docs/` - way of working, backlog, specs, MCP and iOS Shortcut setup
+
+## License
+
+Copyright (c) 2026 Andres Carrera. All rights reserved. See
+**[LICENSE](LICENSE)**.
+
+This repository is public so the work can be read and evaluated. It is
+**not** open source: no rights are granted to use, copy, modify,
+distribute or sell the code. That is a deliberate choice rather than an
+oversight — commercial options are being kept open.
+
+Issues and questions are welcome. For licensing enquiries, contact the
+repository owner.
