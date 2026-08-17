@@ -17,7 +17,7 @@ what broke and why. This file is the summary a reader wants first.
 
 Nothing yet.
 
-## [1.0.0] — unreleased
+## [1.0.0] — 2026-08-17
 
 The core loop is complete: capture, enrichment, a secured dashboard, and
 conversational analysis over real session data — with the pipeline
@@ -57,6 +57,10 @@ proven end to end on a real export from the reconfigured logger.
   database
 
 ### Fixed
+- Weather enrichment reports whether it captured anything. It fails soft
+  so a flaky external call can't cost a session at the track, but an
+  event's worth of sessions was stored with null weather in silence
+  before anyone noticed
 - **Every API endpoint 500'd under concurrent requests.** One SQL
   connection was shared across the whole process, but pytds connections
   are not thread-safe and allow a single active cursor, so parallel
@@ -65,6 +69,13 @@ proven end to end on a real export from the reconfigured logger.
   which is what makes it usable as a pre-event rehearsal
 - A lap-less export now explains itself: RaceChrono's "Data logging"
   mode does no lap timing, which read as a parser bug
+
+### Data
+- **First full event through the finished pipeline** (2026-08-16, NJMP
+  Thunderbolt Classic): three sessions on `accelerator_pos`, 13 corners
+  each. Raw pedal spans 18.9–94.9%, matching the hand-measured
+  calibration endpoints — the constants are confirmed by real driving
+  rather than by a fixture
 
 ## [0.9.0] — 2026-08-12
 
