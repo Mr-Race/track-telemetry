@@ -486,6 +486,28 @@ def ingest(req: func.HttpRequest) -> func.HttpResponse:
         summary["session_id"] = session_id
         summary["corner_metric_count"] = len(metrics)
         summary["segment_count"] = len(segments)
+
+        # Weather enrichment fails soft by design - a flaky external call
+        # must never cost a session at the track. The cost of that is
+        # silence: all three sessions from 2026-08-16 were ingested with
+        # null weather and nobody noticed until the data was inspected by
+        # hand days later, by which time the logs had expired and the
+        # cause was unrecoverable. Reporting it makes the next failure
+        # visible at upload time, the same way `parse.pedal_channel` is.
+        cur = cnx.cursor()
+        cur.execute("SELECT weather, air_temp_f FROM dbo.sessions "
+                     "WHERE session_id = ?", session_id)
+        row = cur.fetchone()
+        summary["weather"] = {
+            "captured": bool(row and row[0] is not None),
+            "conditions": row[0] if row else None,
+            "air_temp_f": float(row[1]) if row and row[1] is not None else None,
+        }
+        if not summary["weather"]["captured"]:
+            logging.warning(
+                "ingest: session_id=%s stored with no weather - enrichment "
+                "returned nothing", session_id)
+
         return _json_response(summary, 200)
 
     except ValueError as exc:

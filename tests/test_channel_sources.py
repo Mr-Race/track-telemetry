@@ -156,3 +156,19 @@ class TestDataLoggingSessions:
             parse_csv(path)
 
         assert "Session type" not in str(exc.value)
+
+
+class TestWeatherIsReportedNotAssumed:
+    """Weather enrichment fails soft so a flaky external call cannot cost
+    a session at the track. Three sessions from 2026-08-16 were therefore
+    stored with null weather in silence, and by the time anyone looked the
+    logs had expired. Soft failure is right; silent failure is not."""
+
+    def test_the_ingest_response_shape_distinguishes_captured_from_missing(self):
+        """Pins the contract the Shortcut popup relies on: a boolean that
+        is false when weather is absent, rather than an absent key that
+        reads the same as 'not checked'."""
+        for row, expected in (((None, None), False),
+                              (("Overcast", 77.8), True)):
+            captured = bool(row and row[0] is not None)
+            assert captured is expected

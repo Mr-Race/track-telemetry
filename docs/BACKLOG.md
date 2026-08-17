@@ -68,11 +68,15 @@ assumption is the same kind of thing. Reviewed 2026-08-10.
   trace and no internal detail, and the traceback reached Application
   Insights with a correlating `error_id`. The S-1 fix behaved exactly as
   designed under conditions nobody arranged.
-- The ingest **duplicate path** has never run end-to-end against prod.
-  The content-hash lookup, the refresh-vs-load branch and the DB
-  constraint are each verified individually, but nothing has actually
-  POSTed the same CSV twice to the live endpoint. First real exercise
-  will be the historical backfill — watch it there.
+- ~~The ingest **duplicate path** has never run end-to-end against prod~~
+  — **closed 2026-08-17.** Re-uploading an archived blob returned
+  `duplicate: true` against the stored session. It was also exercised
+  involuntarily on 2026-08-16: the same file was uploaded twice 17s
+  apart, both passed the application-level check (it is check-then-act,
+  not atomic), and `UQ_sessions_event_content` rejected the second
+  insert. No duplicate session exists. The cost was one orphan blob and
+  a consumed identity value — the constraint is what saved it, not the
+  application logic.
 - The `accelerator_pos` test fixture is **synthetic**. It proves the
   name-resolution logic, not that a real PID-0x49 export parses.
   Blocked on getting `session_20260810_071257_v3.csv` off the phone.
@@ -469,6 +473,34 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-17 — **First real event through the finished pipeline
+      (2026-08-16, NJMP Thunderbolt Classic).** Three sessions, all on
+      `accelerator_pos`, 9/7/7 laps, 13 corners each.
+      **The calibration is confirmed by real data**: raw pedal spans
+      18.9-94.9% across the dry sessions, matching the measured
+      endpoints (18.82 rest, 94.90 stop) almost exactly. Full throttle
+      is reached and normalises to 100%.
+      **The platform explained its own anomaly.** Session 34 looked
+      wrong — best lap 122s against 105-107s, peak pedal 62% against
+      94.9%, max RPM 4618 against 6822. Backfilling weather showed why:
+      **light rain, 97% humidity, 0.051in**. Four independent signals
+      agreeing is a better validation of the pipeline than any test.
+- [x] 2026-08-17 — **Weather enrichment failed silently for a whole
+      event.** All three sessions were stored with null weather while the
+      15 earlier ones had it. Fetch-fails-soft is correct — a flaky
+      external call must not cost a session at the track — but silence is
+      not: nobody noticed until the data was inspected by hand, and by
+      then Application Insights had aged out the event-day traces, so
+      **the root cause is unrecoverable**. Recorded as unknown rather
+      than guessed at.
+      An early hypothesis (Open-Meteo's archive API lagging real time)
+      was tested and **disproved** — the archive serves both the event
+      day and today in full. Stating it before checking was the mistake;
+      the check is what settled it.
+      Backfilled all three from the same API, converting the stored local
+      `start_time` back to UTC via the track timezone. The ingest response
+      now reports `weather.captured`, so the next failure is visible at
+      upload time the way `parse.pedal_channel` already is.
 - [x] 2026-08-13 — **Production outage: one SQL connection shared across
       threads.** Every dashboard endpoint returned 500 with
       `InterfaceError: Invalid TDS marker: 4(4)` and `Cursor is closed`.
