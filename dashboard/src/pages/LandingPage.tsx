@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { listSessions, listTracks } from "../api/client";
 import { useFetch } from "../api/useFetch";
 import { StatTile } from "../components/StatTile";
+import { IS_DEMO } from "../demoMode";
 
 function usePreviewStats() {
   const sessions = useFetch(listSessions, []);
@@ -28,6 +29,16 @@ export function LandingPage() {
 
   return (
     <div className="landing">
+      {/* Say it once, plainly, above the fold: a visitor should never
+          wonder whether these lap times belong to a real person. */}
+      {IS_DEMO && (
+        <p className="demo-banner">
+          <strong>Demo.</strong> Every session, lap and consumable here is
+          fictional, generated to show how the platform behaves. The tracks
+          are real. The driving is not.{" "}
+          <a href="https://www.mr-race.com">See the real platform</a>.
+        </p>
+      )}
       <section className="landing-hero">
         <h2>Track days, actually measured.</h2>
         <p>
@@ -40,6 +51,18 @@ export function LandingPage() {
         <Link className="cta-button" to="/sessions">
           View the dashboard
         </Link>
+        {/* On the real site this points a visitor at the demo. On the
+            demo it would point at itself, so it is hidden there and
+            replaced by the banner below. */}
+        {!IS_DEMO && (
+          <p className="landing-demo-link">
+            No account?{" "}
+            <a href="https://demo.mr-race.com">
+              Explore the demo with sample data
+            </a>{" "}
+            &mdash; no sign-in needed.
+          </p>
+        )}
       </section>
 
       {stats && (

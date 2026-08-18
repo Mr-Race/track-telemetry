@@ -714,3 +714,24 @@ a {
     max-width: 100%;
   }
 }
+
+/* Demo cross-links. The banner has to read as a statement of fact rather
+   than a warning - the data being fictional is the point, not a defect. */
+.landing-demo-link {
+  margin-top: 0.9rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.landing-demo-link a {
+  color: var(--accent);
+}
+.demo-banner {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}

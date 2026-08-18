@@ -379,9 +379,10 @@ export function updateSessionCar(
 // is fetched with the bearer token and exposed as an object URL instead
 // of a plain route URL.
 export async function fetchTrackSatelliteBlob(trackId: number): Promise<string> {
-  // Satellite imagery comes from Azure Maps via the API, which the demo
-  // does not have. Callers already handle a failure by hiding the image.
-  if (IS_DEMO) throw new DemoReadOnlyError(`/tracks/${trackId}/satellite`);
+  // The demo has no API, so the imagery is pre-rendered at build time
+  // into demo-fixtures/tracks/<id>.png. Returned as a plain URL rather
+  // than an object URL - the caller only ever uses it as an <img src>.
+  if (IS_DEMO) return `${API_BASE}/tracks/${trackId}.png`;
   const res = await fetch(`${API_BASE}/tracks/${trackId}/satellite`, {
     headers: await authHeaders(),
   });
