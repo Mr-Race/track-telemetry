@@ -1,0 +1,192 @@
+{
+ "event_id": 2,
+ "event_name": "Summer Sizzle",
+ "track_id": 2,
+ "track_name": "NJMP Thunderbolt",
+ "configuration": "Classic",
+ "org_code": "APEX",
+ "run_group": "Intermediate",
+ "start_date": "2026-06-13",
+ "end_date": "2026-06-14",
+ "session_count": 5,
+ "total_laps": 42,
+ "valid_lap_count": 32,
+ "total_track_time_ms": 4812468,
+ "best_lap_ms": 105925,
+ "best_lap": "1:45.925",
+ "best_lap_session_id": 8,
+ "best_lap_session_number": 5,
+ "best_lap_number": 8,
+ "optimal_lap_ms": 104530,
+ "optimal_lap": "1:44.530",
+ "left_on_table_ms": 1395,
+ "progression_ms": 1757,
+ "corner_deltas": [
+  {
+   "corner_code": "1",
+   "corner_name": null,
+   "min_speed_mph": 58.5,
+   "prior_min_speed_mph": 58.2,
+   "delta_mph": 0.3
+  },
+  {
+   "corner_code": "2",
+   "corner_name": null,
+   "min_speed_mph": 50.7,
+   "prior_min_speed_mph": 50.9,
+   "delta_mph": -0.2
+  },
+  {
+   "corner_code": "3",
+   "corner_name": null,
+   "min_speed_mph": 75.8,
+   "prior_min_speed_mph": 76.1,
+   "delta_mph": -0.3
+  },
+  {
+   "corner_code": "4",
+   "corner_name": null,
+   "min_speed_mph": 95.0,
+   "prior_min_speed_mph": 94.9,
+   "delta_mph": 0.1
+  },
+  {
+   "corner_code": "5",
+   "corner_name": null,
+   "min_speed_mph": 73.5,
+   "prior_min_speed_mph": 72.2,
+   "delta_mph": 1.3
+  },
+  {
+   "corner_code": "6",
+   "corner_name": null,
+   "min_speed_mph": 91.5,
+   "prior_min_speed_mph": 89.3,
+   "delta_mph": 2.2
+  },
+  {
+   "corner_code": "7",
+   "corner_name": null,
+   "min_speed_mph": 88.8,
+   "prior_min_speed_mph": 87.7,
+   "delta_mph": 1.1
+  },
+  {
+   "corner_code": "8",
+   "corner_name": null,
+   "min_speed_mph": 55.5,
+   "prior_min_speed_mph": 54.4,
+   "delta_mph": 1.1
+  },
+  {
+   "corner_code": "9",
+   "corner_name": null,
+   "min_speed_mph": 69.3,
+   "prior_min_speed_mph": 68.3,
+   "delta_mph": 1.0
+  },
+  {
+   "corner_code": "10",
+   "corner_name": null,
+   "min_speed_mph": 75.1,
+   "prior_min_speed_mph": 74.1,
+   "delta_mph": 1.0
+  },
+  {
+   "corner_code": "11A",
+   "corner_name": null,
+   "min_speed_mph": 71.9,
+   "prior_min_speed_mph": 70.8,
+   "delta_mph": 1.1
+  },
+  {
+   "corner_code": "11B",
+   "corner_name": null,
+   "min_speed_mph": 62.0,
+   "prior_min_speed_mph": 61.1,
+   "delta_mph": 0.9
+  },
+  {
+   "corner_code": "12",
+   "corner_name": null,
+   "min_speed_mph": 86.8,
+   "prior_min_speed_mph": 84.8,
+   "delta_mph": 2.0
+  }
+ ],
+ "weather": {
+  "temp_min_f": 75.8,
+  "temp_max_f": 78.7,
+  "conditions": [
+   "Light rain",
+   "Overcast"
+  ]
+ },
+ "sessions": [
+  {
+   "session_id": 4,
+   "session_number": 1,
+   "driver": "Alex Rivera",
+   "start_time": "2026-06-13T09:41:00",
+   "best_lap_ms": 107682,
+   "best_lap": "1:47.682",
+   "avg_valid_lap_ms": 108180,
+   "avg_valid_lap": "1:48.180",
+   "optimal_lap_ms": 106023,
+   "optimal_lap": "1:46.023",
+   "air_temp_f": 77.5
+  },
+  {
+   "session_id": 5,
+   "session_number": 2,
+   "driver": "Alex Rivera",
+   "start_time": "2026-06-13T11:51:00",
+   "best_lap_ms": 107029,
+   "best_lap": "1:47.029",
+   "avg_valid_lap_ms": 107925,
+   "avg_valid_lap": "1:47.925",
+   "optimal_lap_ms": 105621,
+   "optimal_lap": "1:45.621",
+   "air_temp_f": 76.9
+  },
+  {
+   "session_id": 6,
+   "session_number": 3,
+   "driver": "Alex Rivera",
+   "start_time": "2026-06-13T13:34:00",
+   "best_lap_ms": 106909,
+   "best_lap": "1:46.909",
+   "avg_valid_lap_ms": 107236,
+   "avg_valid_lap": "1:47.236",
+   "optimal_lap_ms": 105356,
+   "optimal_lap": "1:45.356",
+   "air_temp_f": 75.8
+  },
+  {
+   "session_id": 7,
+   "session_number": 4,
+   "driver": "Alex Rivera",
+   "start_time": "2026-06-13T15:33:00",
+   "best_lap_ms": 106416,
+   "best_lap": "1:46.416",
+   "avg_valid_lap_ms": 106692,
+   "avg_valid_lap": "1:46.692",
+   "optimal_lap_ms": 105289,
+   "optimal_lap": "1:45.289",
+   "air_temp_f": 78.7
+  },
+  {
+   "session_id": 8,
+   "session_number": 5,
+   "driver": "Alex Rivera",
+   "start_time": "2026-06-13T17:21:00",
+   "best_lap_ms": 105925,
+   "best_lap": "1:45.925",
+   "avg_valid_lap_ms": 106232,
+   "avg_valid_lap": "1:46.232",
+   "optimal_lap_ms": 104530,
+   "optimal_lap": "1:44.530",
+   "air_temp_f": 77.0
+  }
+ ]
+}

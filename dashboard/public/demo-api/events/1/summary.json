@@ -1,0 +1,145 @@
+{
+ "event_id": 1,
+ "event_name": "Spring Opener",
+ "track_id": 1,
+ "track_name": "NJMP Lightning",
+ "configuration": "Full Course",
+ "org_code": "APEX",
+ "run_group": "Novice",
+ "start_date": "2026-04-18",
+ "end_date": null,
+ "session_count": 3,
+ "total_laps": 24,
+ "valid_lap_count": 18,
+ "total_track_time_ms": 2246226,
+ "best_lap_ms": 86327,
+ "best_lap": "1:26.327",
+ "best_lap_session_id": 3,
+ "best_lap_session_number": 3,
+ "best_lap_number": 3,
+ "optimal_lap_ms": 85041,
+ "optimal_lap": "1:25.041",
+ "left_on_table_ms": 1286,
+ "progression_ms": 837,
+ "corner_deltas": [
+  {
+   "corner_code": "1",
+   "corner_name": null,
+   "min_speed_mph": 94.7,
+   "prior_min_speed_mph": 92.9,
+   "delta_mph": 1.8
+  },
+  {
+   "corner_code": "2",
+   "corner_name": null,
+   "min_speed_mph": 92.0,
+   "prior_min_speed_mph": 90.5,
+   "delta_mph": 1.5
+  },
+  {
+   "corner_code": "3",
+   "corner_name": null,
+   "min_speed_mph": 75.1,
+   "prior_min_speed_mph": 74.5,
+   "delta_mph": 0.6
+  },
+  {
+   "corner_code": "4",
+   "corner_name": null,
+   "min_speed_mph": 95.1,
+   "prior_min_speed_mph": 95.6,
+   "delta_mph": -0.5
+  },
+  {
+   "corner_code": "5",
+   "corner_name": null,
+   "min_speed_mph": 60.8,
+   "prior_min_speed_mph": 58.5,
+   "delta_mph": 2.3
+  },
+  {
+   "corner_code": "6",
+   "corner_name": null,
+   "min_speed_mph": 94.2,
+   "prior_min_speed_mph": 93.3,
+   "delta_mph": 0.9
+  },
+  {
+   "corner_code": "7",
+   "corner_name": null,
+   "min_speed_mph": 74.4,
+   "prior_min_speed_mph": 73.7,
+   "delta_mph": 0.7
+  },
+  {
+   "corner_code": "8",
+   "corner_name": null,
+   "min_speed_mph": 47.4,
+   "prior_min_speed_mph": 47.1,
+   "delta_mph": 0.3
+  },
+  {
+   "corner_code": "9",
+   "corner_name": "Lightbulb",
+   "min_speed_mph": 59.2,
+   "prior_min_speed_mph": 59.1,
+   "delta_mph": 0.1
+  },
+  {
+   "corner_code": "10",
+   "corner_name": "Kink",
+   "min_speed_mph": 79.6,
+   "prior_min_speed_mph": 78.9,
+   "delta_mph": 0.7
+  }
+ ],
+ "weather": {
+  "temp_min_f": 61.5,
+  "temp_max_f": 64.3,
+  "conditions": [
+   "Clear",
+   "Partly cloudy"
+  ]
+ },
+ "sessions": [
+  {
+   "session_id": 1,
+   "session_number": 1,
+   "driver": "Alex Rivera",
+   "start_time": "2026-04-18T09:41:00",
+   "best_lap_ms": 87164,
+   "best_lap": "1:27.164",
+   "avg_valid_lap_ms": 87614,
+   "avg_valid_lap": "1:27.614",
+   "optimal_lap_ms": 85987,
+   "optimal_lap": "1:25.987",
+   "air_temp_f": 64.3
+  },
+  {
+   "session_id": 2,
+   "session_number": 2,
+   "driver": "Alex Rivera",
+   "start_time": "2026-04-18T11:37:00",
+   "best_lap_ms": 86614,
+   "best_lap": "1:26.614",
+   "avg_valid_lap_ms": 86943,
+   "avg_valid_lap": "1:26.943",
+   "optimal_lap_ms": 85041,
+   "optimal_lap": "1:25.041",
+   "air_temp_f": 61.5
+  },
+  {
+   "session_id": 3,
+   "session_number": 3,
+   "driver": "Alex Rivera",
+   "start_time": "2026-04-18T13:31:00",
+   "best_lap_ms": 86327,
+   "best_lap": "1:26.327",
+   "avg_valid_lap_ms": 86491,
+   "avg_valid_lap": "1:26.491",
+   "optimal_lap_ms": 85414,
+   "optimal_lap": "1:25.414",
+   "air_temp_f": 62.1
+  }
+ ]
+}

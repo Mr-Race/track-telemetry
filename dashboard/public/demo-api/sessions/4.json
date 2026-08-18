@@ -1,0 +1,102 @@
+{
+ "session_id": 4,
+ "event_id": 2,
+ "event_name": "Summer Sizzle",
+ "track_name": "NJMP Thunderbolt",
+ "session_number": 1,
+ "session_date": "2026-06-13",
+ "run_group": "Intermediate",
+ "weather": "Overcast",
+ "air_temp_f": 77.5,
+ "best_lap_ms": 107682,
+ "best_lap": "1:47.682",
+ "avg_valid_lap_ms": 108180,
+ "avg_valid_lap": "1:48.180",
+ "car": "BRZ",
+ "optimal_lap_ms": 106023,
+ "optimal_lap": "1:46.023",
+ "track_id": 2,
+ "source_file": "demo_session_4.csv",
+ "car_id": 1,
+ "laps": [
+  {
+   "lap_number": 1,
+   "lap_time_ms": 144444,
+   "lap_time": "2:24.444",
+   "is_valid": false,
+   "is_out_lap": true,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 2,
+   "lap_time_ms": 107682,
+   "lap_time": "1:47.682",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 3,
+   "lap_time_ms": 107694,
+   "lap_time": "1:47.694",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 4,
+   "lap_time_ms": 108814,
+   "lap_time": "1:48.814",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 5,
+   "lap_time_ms": 108506,
+   "lap_time": "1:48.506",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 6,
+   "lap_time_ms": 108031,
+   "lap_time": "1:48.031",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 7,
+   "lap_time_ms": 108358,
+   "lap_time": "1:48.358",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 8,
+   "lap_time_ms": 127673,
+   "lap_time": "2:07.673",
+   "is_valid": false,
+   "is_out_lap": false,
+   "is_in_lap": true
+  }
+ ],
+ "corner_coverage": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11A",
+  "11B",
+  "12"
+ ]
+}

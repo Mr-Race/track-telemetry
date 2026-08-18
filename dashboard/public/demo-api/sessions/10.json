@@ -1,0 +1,94 @@
+{
+ "session_id": 10,
+ "event_id": 3,
+ "event_name": "Autumn Cup",
+ "track_name": "NJMP Thunderbolt",
+ "session_number": 2,
+ "session_date": "2026-09-26",
+ "run_group": "Advanced",
+ "weather": "Clear",
+ "air_temp_f": 60.7,
+ "best_lap_ms": 105439,
+ "best_lap": "1:45.439",
+ "avg_valid_lap_ms": 105843,
+ "avg_valid_lap": "1:45.843",
+ "car": "BRZ",
+ "optimal_lap_ms": 104518,
+ "optimal_lap": "1:44.518",
+ "track_id": 2,
+ "source_file": "demo_session_10.csv",
+ "car_id": 1,
+ "laps": [
+  {
+   "lap_number": 1,
+   "lap_time_ms": 141769,
+   "lap_time": "2:21.769",
+   "is_valid": false,
+   "is_out_lap": true,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 2,
+   "lap_time_ms": 106177,
+   "lap_time": "1:46.177",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 3,
+   "lap_time_ms": 105439,
+   "lap_time": "1:45.439",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 4,
+   "lap_time_ms": 106214,
+   "lap_time": "1:46.214",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 5,
+   "lap_time_ms": 105645,
+   "lap_time": "1:45.645",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 6,
+   "lap_time_ms": 105740,
+   "lap_time": "1:45.740",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 7,
+   "lap_time_ms": 131417,
+   "lap_time": "2:11.417",
+   "is_valid": false,
+   "is_out_lap": false,
+   "is_in_lap": true
+  }
+ ],
+ "corner_coverage": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11A",
+  "11B",
+  "12"
+ ]
+}

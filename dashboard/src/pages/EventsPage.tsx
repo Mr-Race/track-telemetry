@@ -10,6 +10,7 @@ import {
 } from "../api/client";
 import { useFetch } from "../api/useFetch";
 import { Loading } from "../components/Loading";
+import { IS_DEMO } from "../demoMode";
 
 // Render order matches the server's row order; empty groups collapse
 // rather than render an empty header.
@@ -110,6 +111,10 @@ export function EventsPage() {
 
   return (
     <div>
+      {/* Read-only demo: a form that can only fail is worse than no
+          form. The events list below is the point of the page. */}
+      {!IS_DEMO && (
+      <>
       <h3>Create event</h3>
       <form className="event-form" onSubmit={handleSubmit}>
         <div className="form-row">
@@ -191,6 +196,8 @@ export function EventsPage() {
           {submitting ? "Creating…" : "Create event"}
         </button>
       </form>
+      </>
+      )}
 
       <h3>Events</h3>
       {events.status === "loading" && <Loading what="events" />}

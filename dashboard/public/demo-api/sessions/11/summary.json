@@ -1,0 +1,120 @@
+{
+ "session_id": 11,
+ "event_id": 3,
+ "event_name": "Autumn Cup",
+ "track_name": "NJMP Thunderbolt",
+ "session_number": 3,
+ "session_date": "2026-09-26",
+ "run_group": "Advanced",
+ "weather": "Mainly clear",
+ "air_temp_f": 61.3,
+ "best_lap_ms": 105379,
+ "best_lap": "1:45.379",
+ "avg_valid_lap_ms": 105763,
+ "avg_valid_lap": "1:45.763",
+ "car": "BRZ",
+ "optimal_lap_ms": 104626,
+ "optimal_lap": "1:44.626",
+ "track_id": 2,
+ "source_file": "demo_session_11.csv",
+ "car_id": 1,
+ "fastest_lap_ms": 105379,
+ "fastest_lap": "1:45.379",
+ "valid_lap_count": 5,
+ "consistency_stdev_ms": 211,
+ "gap_to_optimal_ms": 753,
+ "prior_session_id": 10,
+ "corner_deltas": [
+  {
+   "corner_code": "1",
+   "corner_name": null,
+   "min_speed_mph": 57.8,
+   "prior_min_speed_mph": 57.5,
+   "delta_mph": 0.3
+  },
+  {
+   "corner_code": "2",
+   "corner_name": null,
+   "min_speed_mph": 87.0,
+   "prior_min_speed_mph": 85.0,
+   "delta_mph": 2.0
+  },
+  {
+   "corner_code": "3",
+   "corner_name": null,
+   "min_speed_mph": 75.3,
+   "prior_min_speed_mph": 74.1,
+   "delta_mph": 1.2
+  },
+  {
+   "corner_code": "4",
+   "corner_name": null,
+   "min_speed_mph": 82.4,
+   "prior_min_speed_mph": 80.8,
+   "delta_mph": 1.6
+  },
+  {
+   "corner_code": "5",
+   "corner_name": null,
+   "min_speed_mph": 48.3,
+   "prior_min_speed_mph": 47.8,
+   "delta_mph": 0.5
+  },
+  {
+   "corner_code": "6",
+   "corner_name": null,
+   "min_speed_mph": 81.5,
+   "prior_min_speed_mph": 80.4,
+   "delta_mph": 1.1
+  },
+  {
+   "corner_code": "7",
+   "corner_name": null,
+   "min_speed_mph": 49.8,
+   "prior_min_speed_mph": 50.1,
+   "delta_mph": -0.3
+  },
+  {
+   "corner_code": "8",
+   "corner_name": null,
+   "min_speed_mph": 76.4,
+   "prior_min_speed_mph": 73.9,
+   "delta_mph": 2.5
+  },
+  {
+   "corner_code": "9",
+   "corner_name": null,
+   "min_speed_mph": 76.2,
+   "prior_min_speed_mph": 75.2,
+   "delta_mph": 1.0
+  },
+  {
+   "corner_code": "10",
+   "corner_name": null,
+   "min_speed_mph": 68.4,
+   "prior_min_speed_mph": 68.9,
+   "delta_mph": -0.5
+  },
+  {
+   "corner_code": "11A",
+   "corner_name": null,
+   "min_speed_mph": 54.4,
+   "prior_min_speed_mph": 54.7,
+   "delta_mph": -0.3
+  },
+  {
+   "corner_code": "11B",
+   "corner_name": null,
+   "min_speed_mph": 82.7,
+   "prior_min_speed_mph": 82.5,
+   "delta_mph": 0.2
+  },
+  {
+   "corner_code": "12",
+   "corner_name": null,
+   "min_speed_mph": 66.3,
+   "prior_min_speed_mph": 64.5,
+   "delta_mph": 1.8
+  }
+ ]
+}

@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { createCar, listCars } from "../api/client";
 import { useFetch } from "../api/useFetch";
 import { Loading } from "../components/Loading";
+import { IS_DEMO } from "../demoMode";
 
 export function CarsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -46,6 +47,9 @@ export function CarsPage() {
 
   return (
     <div>
+      {/* Read-only demo - see EventsPage. */}
+      {!IS_DEMO && (
+      <>
       <h3>Add car</h3>
       <form className="event-form" onSubmit={handleSubmit}>
         <div className="form-row">
@@ -106,6 +110,8 @@ export function CarsPage() {
           {submitting ? "Adding…" : "Add car"}
         </button>
       </form>
+      </>
+      )}
 
       <h3>Cars</h3>
       {cars.status === "loading" && <Loading what="cars" />}

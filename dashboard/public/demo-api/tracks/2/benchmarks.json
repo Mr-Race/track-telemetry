@@ -1,0 +1,28 @@
+{
+ "track_id": 2,
+ "track_name": "NJMP Thunderbolt",
+ "personal_best": {
+  "lap_time_ms": 104718,
+  "lap_time": "1:44.718",
+  "session_id": 12,
+  "session_date": "2026-09-26"
+ },
+ "benchmarks": [
+  {
+   "benchmark_id": 1,
+   "driver_name": "Sam Whitfield",
+   "lap_time_ms": 101052,
+   "lap_time": "1:41.052",
+   "set_date": "2026-05-02",
+   "notes": "Same car, stickier tyres."
+  },
+  {
+   "benchmark_id": 2,
+   "driver_name": "Jordan Pike",
+   "lap_time_ms": 106917,
+   "lap_time": "1:46.917",
+   "set_date": "2026-06-20",
+   "notes": null
+  }
+ ]
+}

@@ -1,0 +1,99 @@
+{
+ "session_id": 3,
+ "event_id": 1,
+ "event_name": "Spring Opener",
+ "track_name": "NJMP Lightning",
+ "session_number": 3,
+ "session_date": "2026-04-18",
+ "run_group": "Novice",
+ "weather": "Clear",
+ "air_temp_f": 62.1,
+ "best_lap_ms": 86327,
+ "best_lap": "1:26.327",
+ "avg_valid_lap_ms": 86491,
+ "avg_valid_lap": "1:26.491",
+ "car": "BRZ",
+ "optimal_lap_ms": 85414,
+ "optimal_lap": "1:25.414",
+ "track_id": 1,
+ "source_file": "demo_session_3.csv",
+ "car_id": 1,
+ "fastest_lap_ms": 86327,
+ "fastest_lap": "1:26.327",
+ "valid_lap_count": 5,
+ "consistency_stdev_ms": 131,
+ "gap_to_optimal_ms": 913,
+ "prior_session_id": 2,
+ "corner_deltas": [
+  {
+   "corner_code": "1",
+   "corner_name": null,
+   "min_speed_mph": 65.4,
+   "prior_min_speed_mph": 66.0,
+   "delta_mph": -0.6
+  },
+  {
+   "corner_code": "2",
+   "corner_name": null,
+   "min_speed_mph": 72.4,
+   "prior_min_speed_mph": 71.9,
+   "delta_mph": 0.5
+  },
+  {
+   "corner_code": "3",
+   "corner_name": null,
+   "min_speed_mph": 49.0,
+   "prior_min_speed_mph": 49.8,
+   "delta_mph": -0.8
+  },
+  {
+   "corner_code": "4",
+   "corner_name": null,
+   "min_speed_mph": 72.1,
+   "prior_min_speed_mph": 70.0,
+   "delta_mph": 2.1
+  },
+  {
+   "corner_code": "5",
+   "corner_name": null,
+   "min_speed_mph": 89.2,
+   "prior_min_speed_mph": 87.2,
+   "delta_mph": 2.0
+  },
+  {
+   "corner_code": "6",
+   "corner_name": null,
+   "min_speed_mph": 78.3,
+   "prior_min_speed_mph": 77.9,
+   "delta_mph": 0.4
+  },
+  {
+   "corner_code": "7",
+   "corner_name": null,
+   "min_speed_mph": 87.1,
+   "prior_min_speed_mph": 85.4,
+   "delta_mph": 1.7
+  },
+  {
+   "corner_code": "8",
+   "corner_name": null,
+   "min_speed_mph": 61.3,
+   "prior_min_speed_mph": 61.0,
+   "delta_mph": 0.3
+  },
+  {
+   "corner_code": "9",
+   "corner_name": "Lightbulb",
+   "min_speed_mph": 69.6,
+   "prior_min_speed_mph": 69.2,
+   "delta_mph": 0.4
+  },
+  {
+   "corner_code": "10",
+   "corner_name": "Kink",
+   "min_speed_mph": 52.0,
+   "prior_min_speed_mph": 51.5,
+   "delta_mph": 0.5
+  }
+ ]
+}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { getConsumables, replaceConsumable, type Consumable } from "../api/client";
 import { useFetch } from "../api/useFetch";
 import { Loading } from "../components/Loading";
+import { IS_DEMO } from "../demoMode";
 
 function lifeClass(c: Consumable): string {
   if (c.overdue) return "life-critical";
@@ -120,14 +121,18 @@ function ConsumableRow({
         {c.service_life_sessions && ` · service life ${c.service_life_sessions} sessions`}
         {c.service_life_months && ` · ${c.service_life_months} months`}
         {c.notes && ` · ${c.notes}`}
-        {" · "}
-        <button
-          type="button"
-          className="link-button"
-          onClick={() => setReplacing(true)}
-        >
-          Log replacement
-        </button>
+        {!IS_DEMO && (
+          <>
+            {" · "}
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => setReplacing(true)}
+            >
+              Log replacement
+            </button>
+          </>
+        )}
       </div>
       {replacing && (
         <ReplaceForm

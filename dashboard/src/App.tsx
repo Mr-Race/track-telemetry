@@ -17,9 +17,16 @@ import { EventsPage } from "./pages/EventsPage";
 import { EventSummaryPage } from "./pages/EventSummaryPage";
 import { CarsPage } from "./pages/CarsPage";
 import { loginRequest } from "./authConfig";
+import { IS_DEMO } from "./demoMode";
 
 function AuthControl() {
   const { instance, accounts } = useMsal();
+
+  // Nothing to sign in to in the demo, and offering a button that
+  // cannot work is worse than offering none.
+  if (IS_DEMO) {
+    return <span className="auth-account">Demo &mdash; sample data</span>;
+  }
 
   return (
     <>
@@ -46,6 +53,9 @@ function AuthControl() {
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const isAuthenticated = useIsAuthenticated();
+  // The demo's whole purpose is reaching these pages without an account.
+  // The data behind them is fictional, so there is nothing to protect.
+  if (IS_DEMO) return children;
   return isAuthenticated ? children : <Navigate to="/" replace />;
 }
 

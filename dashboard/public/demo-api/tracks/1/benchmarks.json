@@ -1,0 +1,28 @@
+{
+ "track_id": 1,
+ "track_name": "NJMP Lightning",
+ "personal_best": {
+  "lap_time_ms": 86327,
+  "lap_time": "1:26.327",
+  "session_id": 3,
+  "session_date": "2026-04-18"
+ },
+ "benchmarks": [
+  {
+   "benchmark_id": 1,
+   "driver_name": "Sam Whitfield",
+   "lap_time_ms": 83305,
+   "lap_time": "1:23.305",
+   "set_date": "2026-05-02",
+   "notes": "Same car, stickier tyres."
+  },
+  {
+   "benchmark_id": 2,
+   "driver_name": "Jordan Pike",
+   "lap_time_ms": 88139,
+   "lap_time": "1:28.139",
+   "set_date": "2026-06-20",
+   "notes": null
+  }
+ ]
+}

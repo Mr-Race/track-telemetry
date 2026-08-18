@@ -1,6 +1,7 @@
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import { apiRequest } from "../authConfig";
 import { msalInstance } from "../msalInstance";
+import { IS_DEMO, DemoReadOnlyError } from "../demoMode";
 
 export interface SessionListItem {
   session_id: number;
@@ -258,12 +259,19 @@ async function getAccessToken(): Promise<string | null> {
 }
 
 async function authHeaders(): Promise<HeadersInit> {
+  // The demo has no backend and no identity; asking MSAL for a token
+  // would fail and there is nothing to authenticate against.
+  if (IS_DEMO) return {};
   const token = await getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: await authHeaders() });
+  // Static hosting serves files, not routes: `/sessions/3/summary` is a
+  // file at that path plus `.json`. Appending here keeps every caller
+  // and every URL in the app identical between the two builds.
+  const url = IS_DEMO ? `${API_BASE}${path}.json` : `${API_BASE}${path}`;
+  const res = await fetch(url, { headers: await authHeaders() });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as ApiError | null;
     throw new Error(body?.error ?? `Request to ${path} failed (${res.status})`);
@@ -272,6 +280,7 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 async function postJson<T>(path: string, payload: unknown): Promise<T> {
+  if (IS_DEMO) throw new DemoReadOnlyError(path);
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { ...(await authHeaders()), "Content-Type": "application/json" },
@@ -285,6 +294,7 @@ async function postJson<T>(path: string, payload: unknown): Promise<T> {
 }
 
 async function patchJson<T>(path: string, payload: unknown): Promise<T> {
+  if (IS_DEMO) throw new DemoReadOnlyError(path);
   const res = await fetch(`${API_BASE}${path}`, {
     method: "PATCH",
     headers: { ...(await authHeaders()), "Content-Type": "application/json" },
@@ -369,6 +379,9 @@ export function updateSessionCar(
 // is fetched with the bearer token and exposed as an object URL instead
 // of a plain route URL.
 export async function fetchTrackSatelliteBlob(trackId: number): Promise<string> {
+  // Satellite imagery comes from Azure Maps via the API, which the demo
+  // does not have. Callers already handle a failure by hiding the image.
+  if (IS_DEMO) throw new DemoReadOnlyError(`/tracks/${trackId}/satellite`);
   const res = await fetch(`${API_BASE}/tracks/${trackId}/satellite`, {
     headers: await authHeaders(),
   });

@@ -1,0 +1,28 @@
+[
+ {
+  "track_id": 1,
+  "track_name": "NJMP Lightning",
+  "configuration": "Full Course",
+  "length_miles": 1.9,
+  "corner_count": 10,
+  "personal_best": {
+   "lap_time_ms": 86327,
+   "lap_time": "1:26.327",
+   "session_id": 3,
+   "session_date": "2026-04-18"
+  }
+ },
+ {
+  "track_id": 2,
+  "track_name": "NJMP Thunderbolt",
+  "configuration": "Classic",
+  "length_miles": 2.25,
+  "corner_count": 13,
+  "personal_best": {
+   "lap_time_ms": 104718,
+   "lap_time": "1:44.718",
+   "session_id": 12,
+   "session_date": "2026-09-26"
+  }
+ }
+]

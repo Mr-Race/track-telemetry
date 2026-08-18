@@ -1,0 +1,38 @@
+[
+ {
+  "event_id": 1,
+  "event_name": "Spring Opener",
+  "track_id": 1,
+  "track_name": "NJMP Lightning",
+  "organization_id": 1,
+  "org_code": "APEX",
+  "start_date": "2026-04-18",
+  "end_date": null,
+  "session_count": 3,
+  "phase": "past"
+ },
+ {
+  "event_id": 2,
+  "event_name": "Summer Sizzle",
+  "track_id": 2,
+  "track_name": "NJMP Thunderbolt",
+  "organization_id": 1,
+  "org_code": "APEX",
+  "start_date": "2026-06-13",
+  "end_date": "2026-06-14",
+  "session_count": 5,
+  "phase": "past"
+ },
+ {
+  "event_id": 3,
+  "event_name": "Autumn Cup",
+  "track_id": 2,
+  "track_name": "NJMP Thunderbolt",
+  "organization_id": 1,
+  "org_code": "APEX",
+  "start_date": "2026-09-26",
+  "end_date": null,
+  "session_count": 4,
+  "phase": "past"
+ }
+]

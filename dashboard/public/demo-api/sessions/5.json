@@ -1,0 +1,110 @@
+{
+ "session_id": 5,
+ "event_id": 2,
+ "event_name": "Summer Sizzle",
+ "track_name": "NJMP Thunderbolt",
+ "session_number": 2,
+ "session_date": "2026-06-13",
+ "run_group": "Intermediate",
+ "weather": "Overcast",
+ "air_temp_f": 76.9,
+ "best_lap_ms": 107029,
+ "best_lap": "1:47.029",
+ "avg_valid_lap_ms": 107925,
+ "avg_valid_lap": "1:47.925",
+ "car": "BRZ",
+ "optimal_lap_ms": 105621,
+ "optimal_lap": "1:45.621",
+ "track_id": 2,
+ "source_file": "demo_session_5.csv",
+ "car_id": 1,
+ "laps": [
+  {
+   "lap_number": 1,
+   "lap_time_ms": 142376,
+   "lap_time": "2:22.376",
+   "is_valid": false,
+   "is_out_lap": true,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 2,
+   "lap_time_ms": 107888,
+   "lap_time": "1:47.888",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 3,
+   "lap_time_ms": 107029,
+   "lap_time": "1:47.029",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 4,
+   "lap_time_ms": 108117,
+   "lap_time": "1:48.117",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 5,
+   "lap_time_ms": 108313,
+   "lap_time": "1:48.313",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 6,
+   "lap_time_ms": 107759,
+   "lap_time": "1:47.759",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 7,
+   "lap_time_ms": 108369,
+   "lap_time": "1:48.369",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 8,
+   "lap_time_ms": 108006,
+   "lap_time": "1:48.006",
+   "is_valid": true,
+   "is_out_lap": false,
+   "is_in_lap": false
+  },
+  {
+   "lap_number": 9,
+   "lap_time_ms": 137519,
+   "lap_time": "2:17.519",
+   "is_valid": false,
+   "is_out_lap": false,
+   "is_in_lap": true
+  }
+ ],
+ "corner_coverage": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11A",
+  "11B",
+  "12"
+ ]
+}

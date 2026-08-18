@@ -1,0 +1,10 @@
+[
+ {
+  "car_id": 1,
+  "display_name": "BRZ",
+  "make": "Subaru",
+  "model": "BRZ",
+  "year": 2019,
+  "notes": "Demo car. Fictional, like everything else here."
+ }
+]

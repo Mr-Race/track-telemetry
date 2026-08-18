@@ -75,6 +75,53 @@ was. When an error leaves no trace, look before authentication.
 
 ---
 
+## ADR-012 — The demo is a static site, not a live read-only backend
+
+**2026-08-17 · Accepted · supersedes Parts 1 and 2 of
+`docs/specs/demo-and-public-domain.md`**
+
+The spec proposed fictional data in the production database, isolated by
+a `Demo` driver row, served either behind a published Entra credential
+or through unauthenticated read routes.
+
+**What killed it.** The spec assumed isolation was nearly free because
+"the schema already carries driver scoping". It does not: `driver_id`
+exists only on `dbo.sessions`, and **10 of 12 read functions have no
+driver filter at all** — issue #2 scoped personal bests, nothing more.
+Cars, consumables, events and organizations have no driver link. Demo
+isolation would have meant threading a filter through ten queries whose
+failure mode is publishing real GPS traces.
+
+**Decision.** Build the demo as a static site: the same React app,
+compiled with a demo flag, reading bundled JSON instead of the API, at
+`demo.mr-race.com`.
+
+This does not solve the isolation problem — it **deletes** it. Fictional
+data never shares a database with real data, so no `WHERE` clause can be
+forgotten. It also removes the auth question entirely: no credential to
+publish, no anonymous endpoint reopening a finding the security review
+closed, and no serverless resume for a visitor to wait through.
+
+Cheap because of one existing line — `API_BASE = import.meta.env
+.VITE_API_BASE ?? "/api"` — plus a single `getJson` chokepoint and one
+auth gate in `App.tsx`.
+
+**The cost, stated plainly.** A static site cannot demonstrate the
+conversational layer, which the spec correctly calls the differentiator.
+That is covered instead by Part 4's screen recording: a real question
+answered from real data. Static dashboard for *look at it*, recording
+for *watch it think*.
+
+**Revisit if:** the demo needs to show live or interactive analysis, at
+which point the isolation work becomes unavoidable and should be costed
+honestly rather than assumed cheap.
+
+**Track geometry is reused, not invented** (AC, 2026-08-17). Corner apex
+coordinates for NJMP are not personal data; the sessions on top of them
+are fictional.
+
+---
+
 ## ADR-011 — One SQL connection per *thread*, not per process
 
 **2026-08-13 · Accepted · supersedes the connection half of ADR-007**
