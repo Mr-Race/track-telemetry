@@ -278,24 +278,18 @@ blocks 1.0.
         renderer.
 
 ## v1.x — post-launch backlog (additive)
-- [ ] **Demo account with fictional data** (#29) — the repo is public and
-      linked from job applications, but the dashboard is behind Entra
-      sign-in and the MCP server behind OAuth, so a visitor sees a login
-      wall. Fictional sessions rather than anonymised real ones: GPS
-      traces are personal location data even without a name. Isolated by
-      a `Demo` driver row, read-only. Open question recorded on the
-      issue: a published Entra credential versus an unauthenticated read
-      path, the latter reopening the anonymous-endpoint category the
-      security review closed.
-- [ ] **Demo MCP server** (#33) — Part 2 of
-      `docs/specs/demo-and-public-domain.md`. A second Container App on
-      the same image, hard-coded to the demo `driver_id`, at
-      `mcp-demo.mr-race.com`, and **deliberately unauthenticated**: the
-      production server's OAuth exists to protect real location data,
-      and a visitor will not complete a consent flow against a
-      stranger's tenant. That is defensible *only* while the data is
-      fictional — if the demo ever moves to anonymised real data, this
-      decision has to be revisited. Depends on #29.
+- [x] **Demo account with fictional data** (#29) — **DONE 2026-08-18**,
+      shipped as a static site at https://demo.mr-race.com rather than
+      the live read-only backend originally specced. See ADR-012.
+- [x] ~~**Demo MCP server** (#33)~~ — **closed not-planned 2026-08-18.**
+      A static demo cannot host an MCP endpoint, and the live version
+      costs a Container App, fictional rows in the production database
+      and an unauthenticated endpoint. The conversational half is
+      covered by a screen recording instead (#35).
+- [ ] **Screen recording of a real Claude conversation** (#35) — sixty
+      seconds, real data, one question that would be tedious to answer
+      any other way. For most visitors this is the only demo they will
+      watch, and it shows the differentiator the static demo cannot.
 - [ ] **mr-race.com as the public address** (#34) — Part 3 of the same
       spec; supersedes the older custom-domain line below. The apex
       can't take a CNAME and GoDaddy has no ALIAS, so either `www` is
@@ -473,6 +467,31 @@ identity-level scope; design as one coherent release.
       phone.
 
 ## Done
+- [x] 2026-08-18 — **Public demo shipped: https://demo.mr-race.com.**
+      A static build of the same app (ADR-012), reading generated
+      fixtures instead of the API, on its own Static Web App and
+      subdomain with an auto-renewing certificate.
+      **The design changed because the spec's premise was wrong.** It
+      assumed demo data could live in the production database behind
+      `driver_id` filtering because the pattern was established. It is
+      not: `driver_id` exists only on `dbo.sessions` and 10 of 12 read
+      functions have no driver filter, so isolation meant threading a
+      filter through ten queries whose failure mode is publishing real
+      GPS traces. A static site deletes that problem instead of solving
+      it, and removes the auth question with it.
+      12 fictional sessions over 3 events on real NJMP geometry, with
+      weather, optimal laps, consumables including one overdue, and
+      pre-rendered satellite imagery. Writes hidden, sign-in bypassed,
+      a banner stating the data is fictional, linked from the landing
+      page.
+      **Two things the browser caught that the build did not.** Hiding
+      the create-event form initially blanked the entire events page,
+      list included — same bug in CarsPage — and typecheck and build
+      both passed while it was broken. And fixtures first sat in
+      `dashboard/public/`, which Vite copies into *every* build: the
+      next release would have shipped 35 fictional JSON files to
+      www.mr-race.com unattended, since `cut_release.py` builds and
+      deploys. Both fixed; the runbook carries the check.
 - [x] 2026-08-17 — **First real event through the finished pipeline
       (2026-08-16, NJMP Thunderbolt Classic).** Three sessions, all on
       `accelerator_pos`, 9/7/7 laps, 13 corners each.
