@@ -116,6 +116,14 @@ for *watch it think*.
 which point the isolation work becomes unavoidable and should be costed
 honestly rather than assumed cheap.
 
+**Fixtures live in `dashboard/demo-fixtures/`, not `dashboard/public/`.**
+Vite copies `public/` into *every* build, so fixtures there would have
+shipped 35 fictional JSON files to www.mr-race.com on the next release —
+and `cut_release.py` runs `npm run build` then deploys, so it would have
+happened unattended. `npm run build:demo` copies them into the demo
+bundle instead. Caught by checking whether production served a demo
+fixture; it did not, but the build already contained one.
+
 **Track geometry is reused, not invented** (AC, 2026-08-17). Corner apex
 coordinates for NJMP are not personal data; the sessions on top of them
 are fictional.

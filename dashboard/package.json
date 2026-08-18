@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:demo": "vite build --outDir dist-demo && mkdir -p dist-demo/demo-api && cp -r demo-fixtures/. dist-demo/demo-api/"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.17.1",

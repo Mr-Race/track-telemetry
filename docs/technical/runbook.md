@@ -151,6 +151,30 @@ It also runs as part of `release_gate.py`.
     disclosure. Run it locally; findings go in `.local/`, per
     `SECURITY.md`.
 
+## Deploy the demo
+
+`demo.mr-race.com` is a separate Static Web App serving a separate build
+(ADR-012). It shares the repo but not the data.
+
+```bash
+cd dashboard
+python ../scripts/generate_demo_data.py        # only if fixtures changed
+VITE_DEMO_MODE=1 VITE_API_BASE=/demo-api npm run build:demo
+npx @azure/static-web-apps-cli deploy ./dist-demo \
+  --deployment-token "$(az staticwebapp secrets list \
+      -n swa-track-telemetry-demo -g Track-telemetry \
+      --query 'properties.apiKey' -o tsv)" --env production
+```
+
+!!! warning "Never put demo fixtures in `dashboard/public/`"
+    Vite copies `public/` into every build, including production. They
+    live in `dashboard/demo-fixtures/` and are copied into the demo
+    bundle by `build:demo`. Verify after any change to that layout:
+
+    ```bash
+    npm run build && ls dashboard/dist/demo-api   # must not exist
+    ```
+
 ## Cut a release
 
 See [RELEASING.md](../RELEASING.md).

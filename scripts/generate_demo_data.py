@@ -182,9 +182,13 @@ def write(path, payload, out_dir):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    # Deliberately NOT dashboard/public: Vite copies public/ into every
+    # build, so fixtures living there would ship 35 fictional JSON files
+    # to www.mr-race.com on the next release. `npm run build:demo` copies
+    # them into the demo bundle instead.
     ap.add_argument("--out", default=os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "dashboard", "public", "demo-api"))
+        "dashboard", "demo-fixtures"))
     args = ap.parse_args()
 
     rng = random.Random(SEED)
