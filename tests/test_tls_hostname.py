@@ -1,187 +1,143 @@
 """Certificate hostname verification (ingest/_pytds_tls_compat.py).
 
-This code decides whether the server we reached is the server we asked
-for. Chain validation runs first, so this is the second half of the
-check - but a mistake here accepts a different host's certificate
-silently, which is why it is tested rather than trusted.
+This decides whether the server we reached is the server we asked for.
+Chain validation runs first against certifi's bundle, so this is the
+second half of the check - but a mistake accepts a different host's
+certificate silently.
 
-The cases below are the ones that must FAIL. A hostname matcher that
-only has passing tests has not been tested.
+The verification is delegated to `service_identity` (ADR-013). These
+tests do not re-test that library; they pin the *contract* our shim
+exposes to pytds - returns a bool, never raises - and the behaviours the
+previous hand-rolled version got wrong, so a future change back to
+hand-rolling fails here rather than in production.
+
+Certificates are built for real rather than stubbed: a stub would only
+prove our stub agrees with itself.
 """
 
+import datetime
+
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
+from OpenSSL import crypto
 
-from ingest._pytds_tls_compat import _is_san_matching, _normalise
+from ingest._pytds_tls_compat import _validate_host
 
-
-class TestExactMatch:
-    def test_identical_names_match(self):
-        assert _is_san_matching("db.example.com", "db.example.com")
-
-    def test_different_names_do_not(self):
-        assert not _is_san_matching("db.example.com", "other.example.com")
-
-    @pytest.mark.parametrize("cert,host", [
-        ("DB.Example.COM", "db.example.com"),   # DNS is case-insensitive
-        ("db.example.com.", "db.example.com"),  # trailing root dot
-        ("db.example.com", "DB.EXAMPLE.COM."),
-    ])
-    def test_case_and_trailing_dot_are_not_a_mismatch(self, cert, host):
-        """These previously failed closed - safe, but they broke valid
-        connections rather than rejecting invalid ones."""
-        assert _is_san_matching(cert, host)
+KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
-class TestWildcard:
+def make_cert(cn=None, san=None):
+    """A self-signed certificate with the given CN and DNS SANs, handed
+    back as the pyOpenSSL X509 object pytds passes to validate_host."""
+    name_attrs = [x509.NameAttribute(NameOID.COMMON_NAME, cn)] if cn else []
+    subject = x509.Name(name_attrs)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(KEY.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=365))
+    )
+    if san is not None:
+        builder = builder.add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(n) for n in san]),
+            critical=False)
+    cert = builder.sign(KEY, hashes.SHA256())
+    return crypto.X509.from_cryptography(cert)
+
+
+class TestContract:
+    """pytds calls this expecting a bool. Raising would surface as an
+    unhandled error mid-handshake instead of a rejected certificate."""
+
+    def test_returns_true_not_truthy(self):
+        assert _validate_host(make_cert(san=["db.example.com"]),
+                              b"db.example.com") is True
+
+    def test_returns_false_not_raising(self):
+        assert _validate_host(make_cert(san=["other.example.com"]),
+                              b"db.example.com") is False
+
+    def test_certificate_with_neither_cn_nor_san_is_rejected(self):
+        assert _validate_host(make_cert(), b"db.example.com") is False
+
+    def test_non_ascii_hostname_bytes_do_not_raise(self):
+        assert _validate_host(make_cert(san=["db.example.com"]),
+                              b"\xff\xfe") is False
+
+
+class TestExactAndWildcard:
+    def test_exact_san_match(self):
+        assert _validate_host(make_cert(san=["db.example.com"]),
+                              b"db.example.com")
+
     def test_wildcard_matches_one_label(self):
-        assert _is_san_matching("*.database.windows.net",
-                                "myserver.database.windows.net")
+        """Azure SQL presents a wildcard certificate; this is the path
+        production actually takes."""
+        assert _validate_host(make_cert(san=["*.database.windows.net"]),
+                              b"myserver.database.windows.net")
 
     def test_wildcard_does_not_span_a_dot(self):
-        """The bug this class exists for: `*.example.com` must not match
-        `a.b.example.com`, or one certificate would cover a whole tree."""
-        assert not _is_san_matching("*.example.com", "a.b.example.com")
+        assert _validate_host(make_cert(san=["*.example.com"]),
+                              b"a.b.example.com") is False
 
     def test_wildcard_does_not_match_the_bare_domain(self):
-        assert not _is_san_matching("*.example.com", "example.com")
-
-    def test_wildcard_does_not_match_a_different_domain(self):
-        assert not _is_san_matching("*.example.com", "evil.com")
+        assert _validate_host(make_cert(san=["*.example.com"]),
+                              b"example.com") is False
 
     def test_suffix_confusion_is_rejected(self):
-        """`*.example.com` must not match `attacker-example.com` - the
-        classic incomplete-sanitization shape."""
-        assert not _is_san_matching("*.example.com", "x.attackerexample.com")
-        assert not _is_san_matching("*.example.com", "notexample.com")
+        """The shape this whole class of bug takes: a check that would
+        accept `notexample.com` for `*.example.com`."""
+        assert _validate_host(make_cert(san=["*.example.com"]),
+                              b"notexample.com") is False
 
-
-class TestMalformedWildcards:
-    """None of these are wildcards we honour; each must fall through to
-    an exact comparison and fail."""
-
-    @pytest.mark.parametrize("cert,host", [
-        ("*", "anything.example.com"),
-        ("*.", "a.example.com"),
-        ("*.*", "a.b"),
-        ("*.*.example.com", "a.b.example.com"),
-        ("a.*.example.com", "a.b.example.com"),
-        ("*a.example.com", "ba.example.com"),
-    ])
-    def test_rejected(self, cert, host):
-        assert not _is_san_matching(cert, host)
-
-    def test_bare_host_cannot_be_wildcard_matched(self):
-        assert not _is_san_matching("*.localhost", "localhost")
-
-
-class TestEmptyInput:
-    @pytest.mark.parametrize("cert,host", [
-        ("", "db.example.com"),
-        ("db.example.com", ""),
-        ("", ""),
-        (".", "db.example.com"),
-    ])
-    def test_empty_never_matches(self, cert, host):
-        assert not _is_san_matching(cert, host)
-
-
-class TestNormalise:
-    def test_lowercases_and_strips_root_dot(self):
-        assert _normalise("  DB.Example.COM.  ") == "db.example.com"
-
-
-# --------------------------------------------------------------------
-# The substantive security change: Common Name must be ignored when the
-# certificate carries subjectAltName (RFC 6125 §6.4.4, and the CA/Browser
-# Forum baseline requirements).
-#
-# The previous implementation checked CN *first* and returned on a match,
-# so a certificate whose SAN covered one host and whose CN named another
-# was accepted for the CN. Chain validation makes that hard to reach in
-# practice; hostname verification is not held to "hard to reach".
-# --------------------------------------------------------------------
-
-from cryptography import x509  # noqa: E402
-from cryptography.x509.oid import ExtensionOID, NameOID  # noqa: E402
-
-from ingest import _pytds_tls_compat as tls  # noqa: E402
-
-
-class _Attr:
-    def __init__(self, value):
-        self.oid = NameOID.COMMON_NAME
-        self.value = value
-
-
-class _SanValue:
-    def __init__(self, names):
-        self._names = names
-
-    def get_values_for_type(self, _type):
-        return self._names
-
-
-class _Ext:
-    def __init__(self, names):
-        self.value = _SanValue(names)
-
-
-class _Extensions:
-    def __init__(self, san_names):
-        self._san = _Ext(san_names) if san_names is not None else None
-
-    def get_extension_for_oid(self, oid):
-        if oid == ExtensionOID.SUBJECT_ALTERNATIVE_NAME and self._san:
-            return self._san
-        raise x509.ExtensionNotFound("no san", oid)
-
-
-class _Cert:
-    """Minimal stand-in for the cryptography certificate object."""
-
-    def __init__(self, cn=None, san=None):
-        self.subject = [_Attr(cn)] if cn else []
-        self.extensions = _Extensions(san)
-
-    def to_cryptography(self):
-        return self
+    def test_case_is_not_a_mismatch(self):
+        """DNS is case-insensitive. The hand-rolled version compared raw
+        bytes and failed closed here - safe, but it rejected valid
+        connections."""
+        assert _validate_host(make_cert(san=["DB.Example.COM"]),
+                              b"db.example.com")
 
 
 class TestCommonNameIsNotAuthoritative:
+    """RFC 6125 section 6.4.4 and the CA/Browser Forum baseline
+    requirements: when subjectAltName is present the Common Name must be
+    ignored entirely.
+
+    The hand-rolled version checked CN *first* and returned on a match,
+    so a certificate whose SAN covered one host and whose CN named
+    another was accepted for the CN. Chain validation makes that hard to
+    reach; hostname verification is not held to 'hard to reach'.
+    """
+
     def test_cn_is_ignored_when_san_is_present(self):
-        """The fix. SAN covers attacker.example.com; CN claims the real
-        database host. The certificate must NOT be accepted for it."""
-        cert = _Cert(cn="myserver.database.windows.net",
-                     san=["attacker.example.com"])
+        cert = make_cert(cn="myserver.database.windows.net",
+                         san=["attacker.example.com"])
 
-        assert tls._validate_host(cert, b"myserver.database.windows.net") \
-            is False
+        assert _validate_host(cert, b"myserver.database.windows.net") is False
 
-    def test_san_still_authorises_when_it_matches(self):
-        cert = _Cert(cn="something.else",
-                     san=["myserver.database.windows.net"])
+    def test_san_authorises_even_when_cn_disagrees(self):
+        cert = make_cert(cn="something.else",
+                         san=["myserver.database.windows.net"])
 
-        assert tls._validate_host(cert, b"myserver.database.windows.net")
+        assert _validate_host(cert, b"myserver.database.windows.net")
 
-    def test_san_wildcard_still_works(self):
-        """Azure SQL presents a wildcard; this must keep connecting."""
-        cert = _Cert(cn=None, san=["*.database.windows.net"])
 
-        assert tls._validate_host(cert, b"myserver.database.windows.net")
+class TestRegressionAgainstTheOldImplementation:
+    """Pins the two behaviours that changed, so reverting to the
+    hand-rolled matcher fails here."""
 
-    def test_cn_is_used_only_when_there_is_no_san(self):
-        """Legacy certificates without SAN still verify against CN."""
-        cert = _Cert(cn="legacy.example.com", san=None)
-
-        assert tls._validate_host(cert, b"legacy.example.com")
-        assert tls._validate_host(cert, b"other.example.com") is False
-
-    def test_cn_wildcards_are_not_honoured(self):
-        """A wildcard in CN is not expanded - only SAN wildcards are."""
-        cert = _Cert(cn="*.example.com", san=None)
-
-        assert tls._validate_host(cert, b"a.example.com") is False
-
-    def test_no_cn_and_no_san_is_rejected(self):
-        assert tls._validate_host(_Cert(cn=None, san=None),
-                                  b"db.example.com") is False
+    @pytest.mark.parametrize("cn,san,host,expected", [
+        # CN naming the target while SAN names someone else.
+        ("db.example.com", ["attacker.example.com"], b"db.example.com", False),
+        # Case-only difference, which used to fail closed.
+        (None, ["DB.EXAMPLE.COM"], b"db.example.com", True),
+    ])
+    def test_changed_behaviours(self, cn, san, host, expected):
+        assert _validate_host(make_cert(cn=cn, san=san), host) is expected

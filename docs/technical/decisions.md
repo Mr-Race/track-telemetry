@@ -75,6 +75,53 @@ was. When an error leaves no trace, look before authentication.
 
 ---
 
+## ADR-013 — Don't hand-roll TLS hostname verification
+
+**2026-08-18 · Accepted**
+
+`ingest/_pytds_tls_compat.py` replaces pytds's certificate hostname
+check, to unpin pyOpenSSL/cryptography for GHSA-537c-gmf6-5ccf. The
+replacement was written by hand.
+
+**Decision.** Delegate to `service_identity`, the audited RFC 6125
+implementation the pyOpenSSL/Twisted ecosystem standardised on. Our
+shim is now four lines: call it, convert an exception into the bool
+pytds expects.
+
+**Why.** This code decides whether the server we reached is the server
+we asked for. The list of things it has to get right is long and each
+entry is a documented way to accept the wrong certificate: Common Name
+being inadmissible when subjectAltName is present, wildcards spanning
+exactly one label and never the bare domain, case-insensitivity,
+trailing root dots, IDNA, IP SANs.
+
+The hand-rolled version got one of them wrong. It checked CN **first**
+and returned on a match, so a certificate whose SAN covered
+`attacker.example.com` and whose CN read the database host would have
+been accepted for the database host. Chain validation against certifi
+makes that hard to reach — an attacker needs a CA-issued certificate
+naming the victim in its CN — but hostname verification is not held to
+"hard to reach".
+
+Two smaller things it also got wrong: comparisons were case-sensitive
+and did not strip the trailing root dot, both of which failed *closed*.
+Safe, but they reject valid connections rather than invalid ones, which
+is the kind of bug that gets diagnosed as a network problem.
+
+**Cost.** One dependency (`service_identity`, plus `pyasn1`/`attrs`).
+Cheap next to maintaining a hand-written matcher nobody will re-audit.
+
+**A subtlety worth recording.** `VerificationError` and
+`CertificateError` are siblings, not parent and child. Catching only the
+first let a certificate with no subjectAltName raise out of a function
+pytds expects to return a bool — crashing mid-handshake instead of
+rejecting cleanly. Found by a test, not by reading.
+
+**Revisit if:** `service_identity` becomes unmaintained. The answer then
+is a different audited library, not a hand-rolled matcher.
+
+---
+
 ## ADR-012 — The demo is a static site, not a live read-only backend
 
 **2026-08-17 · Accepted · supersedes Parts 1 and 2 of

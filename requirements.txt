@@ -12,3 +12,9 @@ PyJWT[crypto]
 pyOpenSSL>=26.2
 cryptography>=48.0.1
 certifi
+
+# RFC 6125 certificate hostname verification, used by
+# ingest/_pytds_tls_compat.py in place of a hand-rolled matcher.
+# Audited, and the implementation the pyOpenSSL ecosystem standardised
+# on - see ADR-013 for why this is not something to write ourselves.
+service_identity>=24.2.0

@@ -96,7 +96,19 @@ class TestExitCode:
         out = capsys.readouterr().out
 
         assert "DANGLING" in out
-        assert "gone.net" in out
+
+        # Parse the reported targets and match one exactly, rather than
+        # asking whether a hostname appears anywhere in the blob.
+        # `"gone.net" in out` is substring containment on a hostname -
+        # the exact shape that makes real URL checks unsafe, because
+        # `notgone.net` and `gone.net.evil.com` both satisfy it. Nothing
+        # is being sanitised here, but a scanner cannot tell a test
+        # assertion from a security check, and the parsed form is the
+        # stronger assertion regardless.
+        reported = [line.split("->", 1)[1].strip()
+                    for line in out.splitlines() if "->" in line]
+        assert "gone.net" in reported
+
         # It must also warn against pasting the target somewhere public,
         # since naming it is what an attacker needs.
         assert "SECURITY.md" in out
